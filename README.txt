@@ -22,7 +22,8 @@ the query into postfix notation, which is easier to process. To perform the bool
 operation, we will load the linked list of docIDs for each query word from the posting
 file, and merge the list based on the type of boolean operation. Since skip pointers
 are already assigned to specific nodes at indexing time, linked list can be loaded from
-file fully populated. 
+file fully populated. As a small optimization, we try to detect AND NOT, which is a single
+boolean operation, instead of performing NOT followed by AND operation. 
 
 
 == Files included with this submission ==
