@@ -8,11 +8,12 @@ try:
     import cPickle as pickle
 except:
     import pickle
+from linked_list import LinkedList
 
 precedence_map = {'(':4, 'NOT':3, 'AND':2, 'OR':1}
 
 def search(dictionary_file, postings_file, query_file, output_file, doc_list):
-    out_file = open(out_file, 'w')
+    out_file = open(output_file, 'w')
     post_file = open(postings_file, 'rb')
     dictionary = pickle.load(open(dictionary_file, 'rb'))
 
@@ -21,13 +22,12 @@ def search(dictionary_file, postings_file, query_file, output_file, doc_list):
             result = process_query(query, dictionary, post_file, doc_list)
             docID = ''
             for term in result:
-                docId += result + ' '
+                docID += str(term) + ' '
             docID = docID[0:-1] + '\n'
             out_file.write(docID)
 
     out_file.close()
     post_file.close()
-    query_file.close()
 
 
 def load_posting_list(term, dictionary, post_file):
@@ -35,6 +35,12 @@ def load_posting_list(term, dictionary, post_file):
     word = stemmer.stem(term)
     if word in dictionary:
         freq, offset, length = dictionary[word]
+        post_file.seek(offset)
+        data = post_file.read(length)
+        posting_list = pickle.loads(data)
+        return posting_list
+    else:
+        return LinkedList()
         
 
 def process_query(query, dictionary, post_file, doc_list):
@@ -46,7 +52,7 @@ def process_query(query, dictionary, post_file, doc_list):
     output_queue = shunting_yard(query)
     result_stack = []
 
-    while output_queue
+    while output_queue:
         term = output_queue.pop(0)
         result = None
 
@@ -109,8 +115,8 @@ def shunting_yard(query):
 # operands should both be linked list with skip pointers at specific nodes
 
 def boolean_AND(op1, op2):
-    Node p1 = op1.getHead()
-    Node p2 = op2.getHead()
+    p1 = op1.getHead()
+    p2 = op2.getHead()
     result = LinkedList()
 
     while p1 is not None and p2 is not None:
@@ -133,8 +139,8 @@ def boolean_AND(op1, op2):
     return result
 
 def boolean_OR(op1, op2):
-    Node p1 = op1.getHead()
-    Node p2 = op2.getHead()
+    p1 = op1.getHead()
+    p2 = op2.getHead()
     result = LinkedList()
 
     while p1 is not None or p2 is not None:
@@ -167,7 +173,6 @@ def boolean_NOT(op, doc_list):
         else:
             result.add(doc)
     return result
-
 
 
 def boolean_ANDNOT(op1, op2):
@@ -214,5 +219,6 @@ if dictionary_file == None or postings_file == None or file_of_queries == None o
 
 # read the docID
 id_file = open('docID.txt', 'r')
-docID = list(map(int, id_file.read().split()))
+doc_list = list(map(int, id_file.read().split()))
+search(dictionary_file, postings_file, file_of_queries, file_of_output, doc_list)
 
