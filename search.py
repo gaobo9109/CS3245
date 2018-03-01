@@ -3,17 +3,22 @@ import re
 import nltk
 import sys
 import getopt
+from nltk.stem import *
+try:
+    import cPickle as pickle
+except:
+    import pickle
 
 precedence_map = {'(':4, 'NOT':3, 'AND':2, 'OR':1}
 
-def search(dictionary_file, postings_file, query_file, output_file):
+def search(dictionary_file, postings_file, query_file, output_file, doc_list):
     out_file = open(out_file, 'w')
     post_file = open(postings_file, 'rb')
-    dictionary = load_dictionary(dictionary_file)
+    dictionary = pickle.load(open(dictionary_file, 'rb'))
 
     with open(query_file, 'r') as file:
         for query in file:
-            result = process_query(query, dictionary, post_file)
+            result = process_query(query, dictionary, post_file, doc_list)
             docID = ''
             for term in result:
                 docId += result + ' '
@@ -24,13 +29,15 @@ def search(dictionary_file, postings_file, query_file, output_file):
     post_file.close()
     query_file.close()
 
-def load_dictionary(dictionary_file):
-    pass
 
 def load_posting_list(term, dictionary, post_file):
-    pass
+    stemmer = PorterStemmer()
+    word = stemmer.stem(term)
+    if word in dictionary:
+        freq, offset, length = dictionary[word]
+        
 
-def process_query(query, dictionary, post_file):
+def process_query(query, dictionary, post_file, doc_list):
     op_list = ['AND', 'OR', 'NOT']
     query.replace('(', '( ')
     query.replace(')', ') ')
@@ -41,7 +48,7 @@ def process_query(query, dictionary, post_file):
 
     while output_queue
         term = output_queue.pop(0)
-        result = []
+        result = None
 
         if term not in op_list:
             result = load_posting_list(term, dictionary, post_file)
@@ -70,12 +77,12 @@ def process_query(query, dictionary, post_file):
                 result = boolean_ANDNOT(op1, op2)            
             else:
                 op = result_stack.pop()
-                result = boolean_NOT(op)
+                result = boolean_NOT(op, doc_list)
         
         result_stack.append(result)
 
     assert len(result_stack) == 1, 'result stack should only have one list at this point'
-    return result_stack.pop()
+    return result_stack.pop().toList()
 
 def shunting_yard(query):
     op_stack = []
@@ -99,18 +106,83 @@ def shunting_yard(query):
         output_queue.append(op_stack.pop())
     return output_queue
 
+# operands should both be linked list with skip pointers at specific nodes
 
 def boolean_AND(op1, op2):
-    pass
+    Node p1 = op1.getHead()
+    Node p2 = op2.getHead()
+    result = LinkedList()
+
+    while p1 is not None and p2 is not None:
+        if p1.getData() == p2.getData():
+            result.add(p1.getData())
+            p1 = p1.getNext()
+            p2 = p2.getNext()
+        elif p1.getData() < p2.getData():
+            if p1.hasSkip() and p1.getSkip().getData() <= p2.getData():
+                while p1.hasSkip() and p1.getSkip().getData() <= p2.getData():
+                    p1 = p1.getSkip()
+            else:
+                p1 = p1.getNext()
+        elif p2.getData() < p1.getData():
+            if p2.hasSkip() and p2.getSkip().getData() <= p1.getData():
+                while p2.hasSkip() and p2.getSkip().getData() <= p1.getData():
+                    p2 = p2.getSkip()
+            else:
+                p2 = p2.getNext()
+    return result
 
 def boolean_OR(op1, op2):
-    pass
+    Node p1 = op1.getHead()
+    Node p2 = op2.getHead()
+    result = LinkedList()
 
-def boolean_NOT(op):
-    pass
+    while p1 is not None or p2 is not None:
+        if p1 is not None and p2 is None:
+            result.add(p1.getData())
+            p1 = p1.getNext()
+        elif p2 is not None and p1 is None:
+            result.add(p2.getData())
+            p2 = p2.getNext()
+        else:
+            if p1.getData() == p2.getData():
+                result.add(p1.getData())
+            elif p1.getData() < p2.getData():
+                result.add(p1.getData())
+                result.add(p2.getData())
+            else:
+                result.add(p2.getData())
+                result.add(p1.getData())
+            p1 = p1.getNext()
+            p2 = p2.getNext()
+    return result
+
+def boolean_NOT(op, doc_list):
+    result = LinkedList()
+    p = op.getHead()
+
+    for doc in doc_list:
+        if p is not None and doc == p.getData():
+            p = p.getNext()
+        else:
+            result.add(doc)
+    return result
+
+
 
 def boolean_ANDNOT(op1, op2):
-    pass
+    p1 = op1.getHead()
+    p2 = op2.getHead()
+    result = LinkedList()
+
+    while p1 is not None:
+        if p2 is not None and p2.getData() == p1.getData():
+            p1 = p1.getNext()
+            p2 = p2.getNext()
+        else:
+            result.add(p1.getData())
+            p1 = p1.getNext()
+    return result
 
 
 def usage():
@@ -139,4 +211,8 @@ for o, a in opts:
 if dictionary_file == None or postings_file == None or file_of_queries == None or file_of_output == None :
     usage()
     sys.exit(2)
+
+# read the docID
+id_file = open('docID.txt', 'r')
+docID = list(map(int, id_file.read().split()))
 
