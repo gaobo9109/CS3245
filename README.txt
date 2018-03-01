@@ -12,10 +12,11 @@ we perform porter stemming and store it as a key in the dictionary. The value of
 dictionary is a three element list. The first element is the number of documents the 
 word appears in. The second element is the location in byte for this word's posting 
 list in postings.txt. The last element is the number of bytes to read to retrieve the 
-entire posting list for the word. The postings list file is separated by lines, where 
-each line corresponds to posting list for one word. Each posting list is stored as 
-a LinkedList using pickle, where skip pointers are already assigned to specific nodes 
-within the list. 
+entire posting list for the word. The dictionary is stored as a pickle in Dictionary.txt
+Each posting list is stored as a LinkedList, where skip pointers are assigned based on
+the square root of the length of the list. Every LinkedList is written as a pickle to
+postings.txt, and the corresponding byte location and length is stored in the second 
+and third element of the dictionary values.
 
 During searching, we first tokenize the query and use shunting yard algorithm to convert
 the query into postfix notation, which is easier to process. To perform the boolean 
@@ -58,3 +59,7 @@ To check on NLTK API
 https://brilliant.org/wiki/shunting-yard-algorithm/
 
 To understand the shunting yard algorithm for parsing boolean expression
+
+https://pymotw.com/2/pickle/
+
+To understand how to use pickle

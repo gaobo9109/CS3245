@@ -3,7 +3,7 @@ import re
 import nltk
 import sys
 import getopt
-from os import listdir
+import os
 from nltk.tokenize import sent_tokenize, word_tokenize
 from nltk.stem import *
 import string
@@ -12,7 +12,6 @@ try:
 except:
     import pickle
 import math
-import pprint
 from linked_list import LinkedList 
 
 def usage():
@@ -21,14 +20,14 @@ def usage():
 def utf8len(s):
     return len(s.encode('utf-8'))
 
-def generate_dict_and_postings():
+def generate_dict_and_postings(input_directory):
     dictionary = {}
     postings = []
     term_count = 0
     stemmer = PorterStemmer()
 
     #Get list of all files in the input directory
-    files = listdir(input_directory)
+    files = os.listdir(input_directory)
     files = map (int,files)
     files.sort()
 
@@ -40,8 +39,7 @@ def generate_dict_and_postings():
     #for i in files:
     for i in range(0,10):
         #Concat file name to directory
-        #file = input_directory + str(i)
-        file = input_directory + str(files[i])
+        file = os.path.join(input_directory,str(files[i]))
         with open(file, 'r') as f:
             #Tokenise and stem
             data = f.read()
@@ -56,72 +54,73 @@ def generate_dict_and_postings():
                         #Add to dictionary, set doc freq to 1
                         #term_count is used as a reference to the corresponding index of the postings list
                         dictionary[word] = [1,term_count,0]
-                        #Add doc ID to as first element in posting list
-                        #postings.append([i])
+                        #Add doc ID to as first element in linked list
                         tempLinkedList = LinkedList()
                         tempLinkedList.add(files[i])
+                        #Append linked list to postings list
                         postings.append(tempLinkedList)
                         term_count = term_count + 1
                     else:
                         #Incremet doc frequency
                         dictionary[word][0] = dictionary[word][0] + 1
                         #Append doc ID to posting list
-                        #postings[dictionary[word][1]].append([i])
                         postings[dictionary[word][1]].add(files[i])
 
     return dictionary, postings
 
-def write_postings():
+def write_postings(output_file_postings):
     #Used to track the starting byte of posting
     byte_tracker = 0
     #List of corresponding posting lists and their starting bytes
     byte_ref = []
 
-    #print(postings)
-
     with open(output_file_postings,'w') as f:
         for posting in postings:
             length = posting.size
+            #interval represents how many elements to skip
             interval = length / int(math.floor(math.sqrt(length)))
+
             counter = 0
-            #Write docID with space
             current = posting.getHead()
+
+            #Loops through all nodes in linked list
             while True:
+                #Criteria for node to have skip pointer
                 if counter % interval == 0 and length > 2:
                     skip = current
+                    #Iterates over "interval" number of nodes or till end of list is reached
                     for i in range(0,interval):
                         if skip.hasNext():
                             skip = skip.getNext()
                         else:
                             break
+                    #If node is not itself, set skip pointer
                     if current.getData() != skip.getData():
                         current.setSkip(skip)
 
                 counter = counter + 1
+
                 if current.hasNext() == False:
                     break
                 current = current.getNext()
             
+            #Writes pickle generated string to file
             data_string = pickle.dumps(posting)
-            string_length = len(data_string) + data_string.count('\n')
-            #byte_tracker = byte_tracker + string_length
-            #f.write(str(string_length) + " ")
             f.write(data_string)
-            byte_ref.append([byte_tracker,len(data_string)])
+            #Keep track of starting byte and length of pickle in bytes 
+            byte_ref.append([byte_tracker,f.tell()-byte_tracker])
+            #Keeps track of starting byte of next linked list
             byte_tracker = int(f.tell())
-            #print(string_length)
-
-            #GET PICKLE WRITE TO FILE
+            ll = pickle.loads(data_string)
 
     return byte_ref
 
-def write_dictionary(byte_ref):
-    #Update pointer to correct byte reference
+def write_dictionary(byte_ref, output_file_dictionary):
+    #Updates starting byte and length of pickle
     for key in dictionary:
         dictionary[key][2] = byte_ref[dictionary[key][1]][1]
         dictionary[key][1] = byte_ref[dictionary[key][1]][0]
 
-    print(dictionary)
     #Write dictionary as pickle
     with open(output_file_dictionary,'w') as f:
         data_string = pickle.dumps(dictionary)
@@ -152,6 +151,11 @@ if input_directory == None or output_file_postings == None or output_file_dictio
 dictionary = {}
 postings = []
 
-dictionary,postings = generate_dict_and_postings()
-byte_ref = write_postings()
-write_dictionary(byte_ref)
+dictionary,postings = generate_dict_and_postings(input_directory)
+byte_ref = write_postings(output_file_postings)
+write_dictionary(byte_ref, output_file_dictionary)
+
+'''with open(output_file_postings,'r') as f:
+    f.seek(35475)
+    data = f.read(394)
+    posting_list = pickle.loads(data)'''
