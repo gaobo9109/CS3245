@@ -36,10 +36,9 @@ def generate_dict_and_postings(input_directory):
             f.write(str(docID))
             f.write(" ")
 
-    #for i in files:
-    for i in range(0,10):
+    for i in files:
         #Concat file name to directory
-        file = os.path.join(input_directory,str(files[i]))
+        file = os.path.join(input_directory,str(i))
         with open(file, 'r') as f:
             #Tokenise and stem
             data = f.read()
@@ -56,7 +55,7 @@ def generate_dict_and_postings(input_directory):
                         dictionary[word] = [1,term_count,0]
                         #Add doc ID to as first element in linked list
                         tempLinkedList = LinkedList()
-                        tempLinkedList.add(files[i])
+                        tempLinkedList.add(i)
                         #Append linked list to postings list
                         postings.append(tempLinkedList)
                         term_count = term_count + 1
@@ -64,7 +63,7 @@ def generate_dict_and_postings(input_directory):
                         #Incremet doc frequency
                         dictionary[word][0] = dictionary[word][0] + 1
                         #Append doc ID to posting list
-                        postings[dictionary[word][1]].add(files[i])
+                        postings[dictionary[word][1]].add(i)
 
     return dictionary, postings
 
