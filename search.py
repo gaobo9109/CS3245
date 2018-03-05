@@ -57,7 +57,6 @@ def process_query(query, dictionary, post_file, doc_list):
     query = query.split() 
 
     output_queue = shunting_yard(query)
-    print(output_queue)
 
     result_stack = []
 
@@ -200,9 +199,6 @@ def boolean_ANDNOT(op1, op2):
     result = LinkedList()
 
     while p1 is not None:
-        if p2 is not None and p2.getData() == p1.getData():
-            p1 = p1.getNext()
-            p2 = p2.getNext()
         if p2 is None:
             result.add(p1.getData())
             p1 = p1.getNext()
@@ -213,7 +209,6 @@ def boolean_ANDNOT(op1, op2):
                 result.add(p1.getData())
                 p1 = p1.getNext()
             else:
-                result.add(p1.getData())
                 p1 = p1.getNext()
                 p2 = p2.getNext()
     return result
