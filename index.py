@@ -44,11 +44,13 @@ def generate_dict_and_postings(input_directory):
             data = f.read()
             words = word_tokenize(data)
             words = [stemmer.stem(word) for word in words]
+            
 
             #List(Set(words)) gets rid of duplicates
             for word in list(set(words)):
-
                 if word not in string.punctuation:
+                    #Fix corner cases
+                    word = fix_corner_cases(word, words, stemmer)
                     if word not in dictionary:
                         #Add to dictionary, set doc freq to 1
                         #term_count is used as a reference to the corresponding index of the postings list
@@ -66,6 +68,22 @@ def generate_dict_and_postings(input_directory):
                         postings[dictionary[word][1]].add(i)
 
     return dictionary, postings
+
+def fix_corner_cases(word, words, stemmer):
+    #Fixes case where punctuation is at the last character, causing stemmer to fail
+    if word[-1] in string.punctuation:
+        word = word[:-1]
+        word = stemmer.stem(word)
+
+    #Treats case where two words are separated by / as two separate terms
+    #E.g. April/May
+    if "/" in word:
+        split_words = word.split("/")
+        word = split_words[-1]
+        for new_words in split_words[:-1]:
+            words.append(stemmer.stem(new_words))
+
+    return word
 
 def write_postings(output_file_postings):
     #Used to track the starting byte of posting
