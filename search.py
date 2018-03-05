@@ -3,6 +3,7 @@ import re
 import nltk
 import sys
 import getopt
+import time
 from nltk.stem import *
 try:
     import cPickle as pickle
@@ -10,21 +11,27 @@ except:
     import pickle
 from linked_list import LinkedList
 
-precedence_map = {'(':4, 'NOT':3, 'AND':2, 'OR':1}
+precedence_map = {'NOT':3, 'AND':2, 'OR':1}
 
 def search(dictionary_file, postings_file, query_file, output_file, doc_list):
+    start = time.time()
     out_file = open(output_file, 'w')
     post_file = open(postings_file, 'rb')
     dictionary = pickle.load(open(dictionary_file, 'rb'))
 
     with open(query_file, 'r') as file:
         for query in file:
-            result = process_query(query, dictionary, post_file, doc_list)
-            docID = ''
-            for term in result:
-                docID += str(term) + ' '
-            docID = docID[0:-1] + '\n'
-            out_file.write(docID)
+            query = query.rstrip()
+            if query:
+                result = process_query(query, dictionary, post_file, doc_list)
+                docID = ''
+                for term in result:
+                    docID += str(term) + ' '
+                docID = docID[0:-1] + '\n'
+                out_file.write(docID)
+
+    end = time.time()
+    print(end-start)
 
     out_file.close()
     post_file.close()
@@ -45,11 +52,13 @@ def load_posting_list(term, dictionary, post_file):
 
 def process_query(query, dictionary, post_file, doc_list):
     op_list = ['AND', 'OR', 'NOT']
-    query.replace('(', '( ')
-    query.replace(')', ') ')
-    query = query.split()
+    query = query.replace('(', '( ')
+    query = query.replace(')', ' )')
+    query = query.split() 
 
     output_queue = shunting_yard(query)
+    print(output_queue)
+
     result_stack = []
 
     while output_queue:
@@ -70,10 +79,12 @@ def process_query(query, dictionary, post_file, doc_list):
             # try to detect AND NOT, there are two cases
             # if a AND NOT b, postfix notation a b NOT AND
             # if NOT a AND b, postfix notation a NOT b AND
+            # print(len(output_queue))
             if (len(output_queue) > 0 and output_queue[0] == 'AND'):
                 output_queue.pop(0)
-                op1 = result_stack.pop()
+                # order matters!!!
                 op2 = result_stack.pop()
+                op1 = result_stack.pop()
                 result = boolean_ANDNOT(op1, op2) 
             elif (len(output_queue) > 1 and output_queue[0] not in op_list 
                     and output_queue[1] == 'AND'):
@@ -84,30 +95,37 @@ def process_query(query, dictionary, post_file, doc_list):
             else:
                 op = result_stack.pop()
                 result = boolean_NOT(op, doc_list)
-        
+            
         result_stack.append(result)
 
     assert len(result_stack) == 1, 'result stack should only have one list at this point'
     return result_stack.pop().toList()
+
+def compare_precedence(op1, op2):
+    precedence_map = {'NOT':3, 'AND':2, 'OR':1}
+    
+    if op1 in precedence_map and op2 in precedence_map:
+        return precedence_map[op1] >= precedence_map[op2]
+    return False
 
 def shunting_yard(query):
     op_stack = []
     output_queue = []
 
     for term in query:
-        if term not in precedence_map:
-            output_queue.append(term.lower())
+        if term == '(':
+            op_stack.append(term)
+        elif term == ')':
+            while op_stack and op_stack[-1] != '(':
+                output_queue.append(op_stack.pop())
+            op_stack.pop()
+        elif term == 'AND' or term == 'OR' or term == 'NOT':
+            while op_stack and compare_precedence(op_stack[-1], term):
+                output_queue.append(op_stack.pop())
+            op_stack.append(term)
         else:
-            if term == '(':
-                op_stack.append(term)
-            elif term == ')':
-                while op_stack and op_stack[-1] != '(':
-                    output_queue.append(op_stack.pop())
-                op_stack.pop()
-            else:
-                while op_stack and precedence_map(op_stack[-1]) >= precedence_map(term):
-                    output_queue.append(op_stack.pop())
-                op_stack.append(term)
+            output_queue.append(term.lower())
+            
     while op_stack:
         output_queue.append(op_stack.pop())
     return output_queue
@@ -153,14 +171,15 @@ def boolean_OR(op1, op2):
         else:
             if p1.getData() == p2.getData():
                 result.add(p1.getData())
+                p1 = p1.getNext()
+                p2 = p2.getNext()
             elif p1.getData() < p2.getData():
                 result.add(p1.getData())
-                result.add(p2.getData())
+                p1 = p1.getNext()
             else:
                 result.add(p2.getData())
-                result.add(p1.getData())
-            p1 = p1.getNext()
-            p2 = p2.getNext()
+                p2 = p2.getNext()
+
     return result
 
 def boolean_NOT(op, doc_list):
@@ -184,9 +203,19 @@ def boolean_ANDNOT(op1, op2):
         if p2 is not None and p2.getData() == p1.getData():
             p1 = p1.getNext()
             p2 = p2.getNext()
-        else:
+        if p2 is None:
             result.add(p1.getData())
             p1 = p1.getNext()
+        else:
+            if p2.getData() < p1.getData():
+                p2 = p2.getNext()
+            elif p1.getData() < p2.getData():
+                result.add(p1.getData())
+                p1 = p1.getNext()
+            else:
+                result.add(p1.getData())
+                p1 = p1.getNext()
+                p2 = p2.getNext()
     return result
 
 
