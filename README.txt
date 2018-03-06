@@ -8,14 +8,22 @@ We're using Python Version 2.7 for this assignment.
 
 
 During indexing, we first read a document and tokenize it into words. For each word,
-we perform porter stemming and store it as a key in the dictionary. The value of the 
-dictionary is a three element list. The first element is the number of documents the 
-word appears in. The second element is the location in byte for this word's posting 
-list in postings.txt. The last element is the number of bytes to read to retrieve the 
-entire posting list for the word. The dictionary is stored as a pickle in Dictionary.txt
-Each posting list is stored as a LinkedList, where skip pointers are assigned based on
-the square root of the length of the list. Every LinkedList is written as a pickle to
-postings.txt, and the corresponding byte location and length is stored in the second 
+we perform porter stemming and store it as a key in the dictionary. We accounted for
+2 corner cases:
+
+1. Where the word ends with a puncuation, the punctuation is removed and the word is 
+put through the stemmer again
+2. Where there is a / between two words, the words a treated as two separate terms
+
+The value of the dictionary is a three element list. The first element is 
+the document frequency of the word. The second element is the byte location in 
+postings.txt for this word's posting list. The last element is the number of 
+bytes to read to retrieve the entire posting list for the word. The dictionary is 
+stored as a pickle in Dictionary.txt. 
+
+Each posting list is stored in a LinkedList, where skip pointers are assigned based
+on the square root of the length of the list. Every LinkedList is written as a pickle
+to postings.txt, and the corresponding byte location and length is stored in the second
 and third element of the dictionary values.
 
 During searching, we first tokenize the query and use shunting yard algorithm to convert
