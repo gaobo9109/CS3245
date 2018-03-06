@@ -32,7 +32,8 @@ operation, we will load the linked list of docIDs for each query word from the p
 file, and merge the list based on the type of boolean operation. Since skip pointers
 are already assigned to specific nodes at indexing time, linked list can be loaded from
 file fully populated. As a small optimization, we try to detect AND NOT, which is a single
-boolean operation, instead of performing NOT followed by AND operation. 
+boolean operation, instead of performing NOT followed by AND operation. To perform NOT operation efficiently, we store a complete list of docID, which can be compared against a 
+term's posting list to produce the NOT list. 
 
 
 == Files included with this submission ==

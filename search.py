@@ -78,10 +78,9 @@ def process_query(query, dictionary, post_file, doc_list):
             # try to detect AND NOT, there are two cases
             # if a AND NOT b, postfix notation a b NOT AND
             # if NOT a AND b, postfix notation a NOT b AND
-            # print(len(output_queue))
             if (len(output_queue) > 0 and output_queue[0] == 'AND'):
                 output_queue.pop(0)
-                # order matters!!!
+                # operand after the AND NOT is popped first
                 op2 = result_stack.pop()
                 op1 = result_stack.pop()
                 result = boolean_ANDNOT(op1, op2) 
