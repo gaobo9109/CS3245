@@ -85,7 +85,7 @@ def fix_corner_cases(word, words, stemmer):
 
     return word
 
-def write_postings(output_file_postings):
+def write_postings(output_file_postings, postings):
     #Used to track the starting byte of posting
     byte_tracker = 0
     #List of corresponding posting lists and their starting bytes
@@ -132,7 +132,7 @@ def write_postings(output_file_postings):
 
     return byte_ref
 
-def write_dictionary(byte_ref, output_file_dictionary):
+def write_dictionary(byte_ref, output_file_dictionary, dictionary):
     #Updates starting byte and length of pickle
     for key in dictionary:
         dictionary[key][2] = byte_ref[dictionary[key][1]][1]
@@ -169,8 +169,8 @@ dictionary = {}
 postings = []
 
 dictionary,postings = generate_dict_and_postings(input_directory)
-byte_ref = write_postings(output_file_postings)
-write_dictionary(byte_ref, output_file_dictionary)
+byte_ref = write_postings(output_file_postings, postings)
+write_dictionary(byte_ref, output_file_dictionary, dictionary)
 
 '''with open(output_file_postings,'r') as f:
     f.seek(35475)
