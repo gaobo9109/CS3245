@@ -76,14 +76,18 @@ def fix_corner_cases(word, words, stemmer):
     if word[-1] in string.punctuation:
         word = word[:-1]
         word = stemmer.stem(word)
+        if word not in words:
+            words.append(word)    
+        word = ""
 
     #Treats case where two words are separated by / as two separate terms
     #E.g. April/May
     if "/" in word:
         split_words = word.split("/")
         for new_word in split_words:
-            words.append(stemmer.stem(new_word))
-        words = list(set(words))
+            new_word = stemmer.stem(new_word)
+            if new_word not in words:
+                words.append(new_word)
         word = ""
     return word
 
