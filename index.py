@@ -51,6 +51,8 @@ def generate_dict_and_postings(input_directory):
                 if word not in string.punctuation:
                     #Fix corner cases
                     word = fix_corner_cases(word, words, stemmer)
+                    if word == "":
+                        continue
                     if word not in dictionary:
                         #Add to dictionary, set doc freq to 1
                         #term_count is used as a reference to the corresponding index of the postings list
@@ -79,10 +81,10 @@ def fix_corner_cases(word, words, stemmer):
     #E.g. April/May
     if "/" in word:
         split_words = word.split("/")
-        word = split_words[-1]
-        for new_words in split_words[:-1]:
-            words.append(stemmer.stem(new_words))
-
+        for new_word in split_words:
+            words.append(stemmer.stem(new_word))
+        words = list(set(words))
+        word = ""
     return word
 
 def write_postings(output_file_postings, postings):
