@@ -8,12 +8,9 @@ We're using Python Version 2.7 for this assignment.
 
 
 During indexing, we first read a document and tokenize it into words. For each word,
-we perform porter stemming and store it as a key in the dictionary. We accounted for
-2 corner cases:
-
-1. Where the word ends with a puncuation, the punctuation is removed and the word is 
-put through the stemmer again
-2. Where there is a / between two words, the words a treated as two separate terms
+we convert it to lower case, perform porter stemming and store it as a key in the dictionary.
+We accounted for the corner cases where the word ends with a puncuation. The punctuation is 
+removed and the word is re-stemmed.
 
 The value of the dictionary is a three element list. The first element is 
 the document frequency of the word. The second element is the byte location in 
@@ -32,7 +29,8 @@ operation, we will load the linked list of docIDs for each query word from the p
 file, and merge the list based on the type of boolean operation. Since skip pointers
 are already assigned to specific nodes at indexing time, linked list can be loaded from
 file fully populated. As a small optimization, we try to detect AND NOT, which is a single
-boolean operation, instead of performing NOT followed by AND operation. To perform NOT operation efficiently, we store a complete list of docID, which can be compared against a 
+boolean operation, instead of performing NOT followed by AND operation. To perform NOT 
+operation efficiently, we store a complete list of docID, which can be compared against a 
 term's posting list to produce the NOT list. 
 
 
