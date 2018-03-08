@@ -11,7 +11,6 @@ except:
     import pickle
 from linked_list import LinkedList
 
-precedence_map = {'NOT':3, 'AND':2, 'OR':1}
 
 def search(dictionary_file, postings_file, query_file, output_file, doc_list):
     start = time.time()
