@@ -8,9 +8,8 @@ We're using Python Version 2.7 for this assignment.
 
 
 During indexing, we first read a document and tokenize it into words. For each word,
-we convert it to lower case, perform porter stemming and store it as a key in the dictionary.
-We accounted for the corner cases where the word ends with a puncuation. For such case, the
-punctuation is removed before stemming
+we convert it to lower case, remove all punctuation, then perform porter stemming and
+store it as a key in the dictionary. 
 
 The value of the dictionary is a three element list. The first element is 
 the document frequency of the word. The second element is the byte location in 
