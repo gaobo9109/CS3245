@@ -85,8 +85,8 @@ def process_query(query, dictionary, post_file, doc_list):
                 result = boolean_ANDNOT(op1, op2) 
             elif (len(output_queue) > 1 and output_queue[0] not in op_list 
                     and output_queue[1] == 'AND'):
-                op1 = result_stack.pop(0)
-                op2 = load_posting_list(output_queue.pop(), dictionary, post_list)
+                op2 = result_stack.pop()
+                op1 = load_posting_list(output_queue.pop(0), dictionary, post_file)
                 output_queue.pop(0)
                 result = boolean_ANDNOT(op1, op2)            
             else:
