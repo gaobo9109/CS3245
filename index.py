@@ -41,14 +41,14 @@ def generate_dict_and_postings(input_directory):
             #Tokenise and stem
             data = f.read()
             words = word_tokenize(data)
-            # words = [stemmer.stem(word.lower()) for word in words]
+            words = [stemmer.stem(word.translate(None, string.punctuation)) for word in words]
 
             #Removes punctuation for words with puncuation as last character
-            for index, word in enumerate(words):
-                if word [-1] in string.punctuation and len(word) > 1:
-                    words[index] = stemmer.stem(word[:-1].lower())
-                else:
-                    words[index] = stemmer.stem(word.lower())
+            # for index, word in enumerate(words):
+            #     if word [-1] in string.punctuation and len(word) > 1:
+            #         words[index] = stemmer.stem(word[:-1].lower())
+            #     else:
+            #         words[index] = stemmer.stem(word.lower())
 
             #List(Set(words)) gets rid of duplicates
             for word in list(set(words)):

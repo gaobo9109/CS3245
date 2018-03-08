@@ -5,6 +5,7 @@ import sys
 import getopt
 import time
 from nltk.stem import *
+import string
 try:
     import cPickle as pickle
 except:
@@ -38,7 +39,7 @@ def search(dictionary_file, postings_file, query_file, output_file, doc_list):
 
 def load_posting_list(term, dictionary, post_file):
     stemmer = PorterStemmer()
-    word = stemmer.stem(term)
+    word = stemmer.stem(term.translate(None, string.punctuation))
     if word in dictionary:
         freq, offset, length = dictionary[word]
         post_file.seek(offset)
