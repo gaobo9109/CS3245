@@ -5,13 +5,17 @@ import sys
 import getopt
 import time
 from nltk.stem import *
+from nltk.corpus import stopwords
 import string
 import math
+import heapq
+import collections
 try:
     import cPickle as pickle
 except:
     import pickle
 
+stop_words = set(stopwords.words('english'))
 
 def search(dictionary_file, postings_file, query_file, output_file, doc_norm_file):
     start = time.time()
@@ -47,13 +51,14 @@ def load_posting_list(term, dictionary, post_file):
 
 
 def process_query(query, dictionary, post_file, doc_norm):
-    query_weight = compute_query_norm_weight(query, dictionary, len(doc_norm))
+    query_weight = compute_query_weight(query, dictionary, len(doc_norm))
     if len(query_weight) == 0:
         return []
     else:
         term_postings = {term: load_posting_list(term, dictionary, post_file) for term in query_weight}
         cos_score = compute_cos_similarity(query_weight, term_postings, doc_norm)
         doc_list = find_top_k_match(k, cos_score)
+        return doc_list
 
 # return a dictioary where key is doc_id,
 # and value is cos similarity score for that doc
@@ -64,46 +69,42 @@ def compute_cos_similarity(query_weight, term_postings, doc_norm):
         posting = term_postings[term]
         for doc_id, tf in posting:
             if doc_id in cos_score:
-                # TODO find normalization term for tf
-                cos_score[doc_id] += query_weight[term] * (1 + log(tf)) / doc_norm[doc_id]
+                cos_score[doc_id] += query_weight[term] * (1 + log(tf, 10)) / doc_norm[doc_id]
             else:
-                cos_score[doc_id] = query_weight[item] * (1 + log(tf)) / doc_norm[doc_id]
+                cos_score[doc_id] = query_weight[item] * (1 + log(tf, 10)) / doc_norm[doc_id]
 
+    cos_score = collections.OrderedDict(sorted(cos_score.items()))
     return cos_score
 
 
 # return a dictionary where the key is a query term, 
 # and value is tf-idf weight for that term
-def compute_query_norm_weight(query, dictionary, num_doc):
+def compute_query_weight(query, dictionary, num_doc):
     term_weight = {}
     for term in query.split():
         term = process_term(term)
         if term in term_weight:
             term_weight[term] += 1
-        elif term in dictionary:
+        elif term in dictionary and term not stop_words:
             term_weight[term] = 1
 
-    sum_of_square = 0
     for term, freq in term_weight.iteritems():
-        idf_wt = math.log(num_doc / dictionary[term][0])
-        tf_wt = 1 + math.log(freq)
+        df = dictionary[term][0]
+        idf_wt = math.log(float(num_doc) / df, 10)
+        tf_wt = 1 + math.log(freq, 10)
         wt = idf_wt * tf_wt
-        sum_of_square += wt * wt
         term_weight[term] = wt
-
-    # normalization
-    for term, wt in term_weight.iteritems():
-        term_weight[term] = wt / math.sqrt(sum_of_square)
 
     return term_weight
 
 def find_top_k_match(k, cos_score):
     reverse_map = {v: k for k, v in cos_score}
-    sorted_score = reverse_map.keys().sort(reverse=True)
+    heap = heapq.heapify(map(lambda x:-x, reverse_map.keys()))
 
     result = []
     for i in range(k):
-        result.append(reverse_map[sorted_score[i]])
+        cos_score = -heapq.heappop(heap)
+        result.append(reverse_map[cos_score])
     return result
 
 def process_term(term):
