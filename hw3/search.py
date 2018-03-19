@@ -9,7 +9,6 @@ from nltk.corpus import stopwords
 import string
 import math
 import heapq
-import collections
 try:
     import cPickle as pickle
 except:
@@ -73,11 +72,6 @@ def compute_cos_similarity(query_weight, term_postings, doc_norm):
             else:
                 cos_score[doc_id] = query_weight[term] * tf / doc_norm[doc_id]
 
-    # preserve doc ordering, for breaking ties when cos score same
-    cos_score = collections.OrderedDict(sorted(cos_score.items()))
-
-    for doc_id in cos_score:
-        print(doc_norm[doc_id])
     return cos_score
 
 
@@ -102,17 +96,34 @@ def compute_query_weight(query, dictionary, num_doc):
     return term_weight
 
 def find_top_k_match(num_results, cos_score):
-    num_results = num_results if len(cos_score) > num_results else len(cos_score)
 
-    print(cos_score)
-    reverse_map = {v: k for k, v in cos_score.items()}
+    reverse_map = {}
+
+    for k, v in cos_score.iteritems():
+        if v not in reverse_map:
+            reverse_map[v] = [k]
+        else:
+            reverse_map[v].append(k)
+            reverse_map[v].sort()
+
     heap = map(lambda x: -x, reverse_map.keys())
     heapq.heapify(heap)
 
     result = []
-    for i in range(num_results):
-        cos_score = -heapq.heappop(heap)
-        result.append(reverse_map[cos_score])
+
+    if num_results > len(cos_score):
+        for i in range(len(reverse_map)):
+            cos_score = -heapq.heappop(heap)
+            result.extend(reverse_map[cos_score])
+
+    else:
+        while(len(result) < num_results):
+            cos_score = -heapq.heappop(heap)
+            result.extend(reverse_map[cos_score])
+
+        while(len(result) > num_results):
+            result.pop()
+
     return result
 
 def process_term(term):
