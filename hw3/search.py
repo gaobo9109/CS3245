@@ -69,12 +69,15 @@ def compute_cos_similarity(query_weight, term_postings, doc_norm):
         posting = term_postings[term]
         for doc_id, tf in posting:
             if doc_id in cos_score:
-                cos_score[doc_id] += query_weight[term] * (1 + math.log(tf, 10)) / doc_norm[doc_id]
+                cos_score[doc_id] += query_weight[term] * tf / doc_norm[doc_id]
             else:
-                cos_score[doc_id] = query_weight[term] * (1 + math.log(tf, 10)) / doc_norm[doc_id]
+                cos_score[doc_id] = query_weight[term] * tf / doc_norm[doc_id]
 
     # preserve doc ordering, for breaking ties when cos score same
     cos_score = collections.OrderedDict(sorted(cos_score.items()))
+
+    for doc_id in cos_score:
+        print(doc_norm[doc_id])
     return cos_score
 
 
@@ -100,6 +103,7 @@ def compute_query_weight(query, dictionary, num_doc):
 
 def find_top_k_match(num_results, cos_score):
     num_results = num_results if len(cos_score) > num_results else len(cos_score)
+
     print(cos_score)
     reverse_map = {v: k for k, v in cos_score.items()}
     heap = map(lambda x: -x, reverse_map.keys())
