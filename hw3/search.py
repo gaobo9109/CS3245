@@ -43,7 +43,7 @@ def search(dictionary_file, postings_file, query_file, output_file, doc_norm_fil
 
 
 def load_posting_list(term, dictionary, post_file):
-    freq, offset, length = dictionary[word]
+    freq, offset, length = dictionary[term]
     post_file.seek(offset)
     data = post_file.read(length)
     posting_list = pickle.loads(data)
@@ -57,7 +57,7 @@ def process_query(query, dictionary, post_file, doc_norm):
     else:
         term_postings = {term: load_posting_list(term, dictionary, post_file) for term in query_weight}
         cos_score = compute_cos_similarity(query_weight, term_postings, doc_norm)
-        doc_list = find_top_k_match(k, cos_score)
+        doc_list = find_top_k_match(10, cos_score)
         return doc_list
 
 # return a dictioary where key is doc_id,
@@ -69,10 +69,11 @@ def compute_cos_similarity(query_weight, term_postings, doc_norm):
         posting = term_postings[term]
         for doc_id, tf in posting:
             if doc_id in cos_score:
-                cos_score[doc_id] += query_weight[term] * (1 + log(tf, 10)) / doc_norm[doc_id]
+                cos_score[doc_id] += query_weight[term] * (1 + math.log(tf, 10)) / doc_norm[doc_id]
             else:
-                cos_score[doc_id] = query_weight[item] * (1 + log(tf, 10)) / doc_norm[doc_id]
+                cos_score[doc_id] = query_weight[term] * (1 + math.log(tf, 10)) / doc_norm[doc_id]
 
+    # preserve doc ordering, for breaking ties when cos score same
     cos_score = collections.OrderedDict(sorted(cos_score.items()))
     return cos_score
 
@@ -85,7 +86,7 @@ def compute_query_weight(query, dictionary, num_doc):
         term = process_term(term)
         if term in term_weight:
             term_weight[term] += 1
-        elif term in dictionary and term not stop_words:
+        elif term in dictionary and term not in stop_words:
             term_weight[term] = 1
 
     for term, freq in term_weight.iteritems():
@@ -97,12 +98,15 @@ def compute_query_weight(query, dictionary, num_doc):
 
     return term_weight
 
-def find_top_k_match(k, cos_score):
-    reverse_map = {v: k for k, v in cos_score}
-    heap = heapq.heapify(map(lambda x:-x, reverse_map.keys()))
+def find_top_k_match(num_results, cos_score):
+    num_results = num_results if len(cos_score) > num_results else len(cos_score)
+    print(cos_score)
+    reverse_map = {v: k for k, v in cos_score.items()}
+    heap = map(lambda x: -x, reverse_map.keys())
+    heapq.heapify(heap)
 
     result = []
-    for i in range(k):
+    for i in range(num_results):
         cos_score = -heapq.heappop(heap)
         result.append(reverse_map[cos_score])
     return result
@@ -140,6 +144,6 @@ if dictionary_file == None or postings_file == None or file_of_queries == None o
     usage()
     sys.exit(2)
 
-doc_norm_file = 'doc_norm.txt'
-search(dictionary_file, postings_file, query_file, output_file, doc_norm_file)
+doc_norm_file = 'lengths.txt'
+search(dictionary_file, postings_file, file_of_queries, file_of_output, doc_norm_file)
 
