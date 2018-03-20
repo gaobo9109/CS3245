@@ -43,9 +43,13 @@ def generate_dict_and_postings(input_directory):
 			data = f.read()
 			words = word_tokenize(data)
 			words = [stemmer.stem(word.lower().translate(None, string.punctuation)) for word in words]
+
+			#Counter stores the count of every word
 			counter = Counter(words)
 
+			#Keeps track of the current sum of tf^2
 			lengthSum = 0
+
 			#Set(words) gets rid of duplicates
 			for word in set(words):
 				if word != "":
@@ -54,15 +58,19 @@ def generate_dict_and_postings(input_directory):
 						#Add to dictionary, set doc freq to 1
 						#term_count is used as a reference to the corresponding index of the postings list
 						dictionary[word] = [1,term_count,0]
-						#Append linked list to postings list
+						#Append pair of docID and weighted tf to postings list
 						postings.append([[i,weighted_tf]])
 						term_count = term_count + 1
 					else:
 						#Incremet doc frequency
 						dictionary[word][0] = dictionary[word][0] + 1
-						#Append doc ID to posting list
+						#Append pair of docID and weighted tf to postings list
 						postings[dictionary[word][1]].append([i,weighted_tf])
+
+					#Add weighted_tf^2 to lengthSum
 					lengthSum = lengthSum + (weighted_tf*weighted_tf)
+
+			#After all words have been added to dictionary, calculate document length for normalisation
 			lengths[i] = math.sqrt(lengthSum)
 
 	return dictionary, postings, lengths
@@ -99,7 +107,7 @@ def write_dictionary(byte_ref, output_file_dictionary, dictionary):
 		f.write(data_string)
 
 def write_lengths(output_file_lengths, lengths):
-	#Write dictionary as pickle
+	#Write lengths as pickle
 	with open(output_file_lengths,'w') as f:
 		data_string = pickle.dumps(lengths)
 		f.write(data_string)
