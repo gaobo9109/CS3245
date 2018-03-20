@@ -100,6 +100,7 @@ def find_top_k_match(num_results, cos_score):
     reverse_map = {}
 
     for k, v in cos_score.iteritems():
+
         if v not in reverse_map:
             reverse_map[v] = [k]
         else:
@@ -128,7 +129,7 @@ def find_top_k_match(num_results, cos_score):
 
 def process_term(term):
     stemmer = PorterStemmer()
-    word = stemmer.stem(term.translate(None, string.punctuation))
+    word = stemmer.stem(term.lower().translate(None, string.punctuation))
     return word
 
 

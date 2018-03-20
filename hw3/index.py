@@ -35,14 +35,14 @@ def generate_dict_and_postings(input_directory):
 			f.write(str(docID))
 			f.write(" ")
 
-	for i in files[:10]:
+	for i in files:
 		#Concat file name to directory
 		file = os.path.join(input_directory,str(i))
 		with open(file, 'r') as f:
 			#Tokenise and stem
 			data = f.read()
 			words = word_tokenize(data)
-			words = [stemmer.stem(word.translate(None, string.punctuation)) for word in words]
+			words = [stemmer.stem(word.lower().translate(None, string.punctuation)) for word in words]
 			counter = Counter(words)
 
 			lengthSum = 0
