@@ -10,7 +10,7 @@ object and then you can do sanitizing. You could change the stop words in
 """
 
 DEFAUIT_INVALID_CHARS = r'[^\w\d\s\-]+'
-DEFAULT_JUDGMENT_KEY = 'Judgment:'
+DEFAULT_JUDGEMENT_KEY = 'Judgment:'
 
 PATH_NOT_VALID_MESSAGE = 'Stop words path is not valid.'
 
@@ -22,17 +22,17 @@ class Sanitizer:
     def tokenize(self, text, remove_stop_words=True):
         """Tokenizes text by removing invalid characters, putting to lower case and stemming
         Return a list of sanitized tokens from the given text"""
-        tokens = map(lambda t: re.sub(self.invalid_regex, '', t), nltk.word_tokenize(text))
+        tokens = map(lambda t: re.sub(self.invalid_regex, '', t), nltk.word_tokenize(text.decode('utf-8')))
         tokens = map(lambda t: self.ps.stem(t.lower()), filter(None, tokens))
         if remove_stop_words:
             tokens = filter(lambda t: t not in self.stop_words, tokens)
         return tokens
 
-    def extract_judgment(self, content, judgment_key=DEFAULT_JUDGMENT_KEY):
+    def extract_judgement(self, content, judgement_key=DEFAULT_JUDGEMENT_KEY):
         """Extracts the judgement part accroding to the key word
         Returns a text block (string) of judgement text
         """
-        return content.split(judgment_key)[1]
+        return content.split(judgement_key)[1]
 
     def __read_stop_words(self, path):
         """Reads the stop words from a give path.
