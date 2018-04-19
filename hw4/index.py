@@ -26,6 +26,7 @@ def generate_dict_and_postings(input_directory):
 	lengths = {}
 	courts = {}
 	term_count = 0
+	count = 0
 
 	with open(input_directory,'r') as f:
 		raw_text = ""
@@ -34,17 +35,18 @@ def generate_dict_and_postings(input_directory):
 		for line in f:
 			#Counts number of time delimiter occurs. It should occur 4 times but delimiter may appear in content
 			delimiter_count = delimiter_count + line.count("\",\"")
+			#Add line to text
+			raw_text = raw_text + line
 			#Checks if the end of the entry is reached given by these conditions
 			if line.endswith("\"\n") and delimiter_count >= 4 and "\",\"" in line:
-				raw_text = raw_text + line
-				#Process based on raw data
 				term_count = process_dict_and_postings(raw_text, dictionary, postings, courts, lengths, term_count)
 				#Reset raw_text and delimiter count
 				raw_text = ""
 				delimiter_count = 0
+				#count = count + 1
+				#if count == 5:
+				#	break
 				continue
-			#Else, add the line to the raw text
-			raw_text = raw_text + line
 
 	return dictionary, postings, lengths, courts
 
@@ -72,8 +74,6 @@ def process_dict_and_postings(raw_text, dictionary, postings,courts,lengths,term
 	sanitizer = Sanitizer()
 
 	#words = sanitizer.tokenize(sanitizer.extract_judgement(content))
-	#Use above when extract_judgement is fixed
-	#Generates word list
 	words = sanitizer.tokenize(content)
 
 
@@ -119,9 +119,14 @@ def write_postings(output_file_postings, postings, dictionary):
 	byte_ref = []
 
 	with open(output_file_postings,'w') as f:
-		for posting in postings:            
+		for postinglist in postings:
+			data_string = ""
 			#Writes pickle generated string to file
-			data_string = pickle.dumps(posting)
+			for posting in postinglist:
+				data_string = data_string + str(posting[0]) + "," + str(posting[1]) + ";"
+			data_string = data_string + "\n"
+			#print (data_string)
+			#data_string = pickle.dumps(posting)
 			f.write(data_string)
 			#Keep track of starting byte and length of pickle in bytes 
 			byte_ref.append([byte_tracker,f.tell()-byte_tracker])
