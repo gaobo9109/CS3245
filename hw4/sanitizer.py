@@ -10,11 +10,11 @@ object and then you can do sanitizing. You could change the stop words in
 'stop_words.txt'.
 """
 
-DEFAULT_INVALID_CHARS = r'[^\w\d\s\-]+'
-DEFAULT_JUDGEMENT_REGEX = '[J|j][U|u][D|d][G|g][E|e]?[M|m][E|e][N|n][T|t][:\n|\n]'
+DEFAULT_INVALID_CHARS = re.compile(r'[^\w\d\s\-]+')
+DEFAULT_JUDGEMENT_REGEX = re.compile(r'judge?ment:?\n', re.I)
 DEFAULT_JUDGEMENT_KEY = 'judgment'
-LINE_BREAK = '\n'
-WHITE_SPACE = '\s+'
+LINE_BREAK = re.compile(r'\n')
+WHITE_SPACE = re.compile(r'\s+')
 
 PATH_NOT_VALID_MESSAGE = 'Stop words path is not valid.'
 
@@ -45,7 +45,7 @@ class Sanitizer:
         from k + 1 are from content
         """
         breaked = re.split(LINE_BREAK, content)
-        white_removed = map(lambda x: ''.join(re.split(WHITE_SPACE, x)), filter(lambda x: len(x) > 1, breaked))
+        white_removed = [re.sub(WHITE_SPACE, '', line) for line in breaked]
         sample = white_removed[:2]
         average_length = numpy.mean([len(x) for x in sample])
 
