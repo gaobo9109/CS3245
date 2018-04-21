@@ -48,7 +48,7 @@ def load_posting_list(term, dictionary, post_file):
     offset = dictionary[term].offset
     post_file.seek(offset)
     data = post_file.readline()
-    posting_list = data.split(';')
+    posting_list = map(lambda x: x.split(','), data.split(';'))
     return posting_list
 
 
@@ -57,16 +57,16 @@ def process_query(query, dictionary, post_file, doc_info):
     doc_list = []
 
     for q in queries:
-        if q[0] == q[-1] == '"':
-            # TODO phrasal query
-            pass
+        if q.find('\"') == 0 and q.find('\"',1) == len(q) - 1
+            q = q.replace('\"', "")
+            result = phrasal_query(q, dictionary, post_file)
+            doc_list.append(result)
         else:
             query_weight = compute_query_weight(query, dictionary, len(doc_info))
 
             if len(query_weight) > 0:
                 term_postings = {term: load_posting_list(term, dictionary, post_file) for term in query_weight}
                 cos_score = compute_cos_similarity(query_weight, term_postings, doc_info)
-                print(cos_score)
                 result = []
                 for key in sorted(cos_score, key=cos_score.get, reverse=True):
                     result.append(key)
@@ -76,7 +76,7 @@ def process_query(query, dictionary, post_file, doc_info):
     if len(doc_list) == 1:
         doc_list = doc_list[0]
     else:
-        # TODO, combine multiple lists
+        # TODO: combine multiple lists
         pass
 
     return doc_list
@@ -89,14 +89,14 @@ def compute_cos_similarity(query_weight, term_postings, doc_info):
 
     for term in query_weight:
         posting = term_postings[term]
-        for pair in posting:
-            # format of docID-tf string pair: docID,tf
-            doc_id, tf = pair.split(',')
+        for item in posting:
+            doc_id = item[0]
+            tf = float(item[1])
 
             if doc_id in cos_score:
-                cos_score[doc_id] += query_weight[term] * float(tf) / doc_info[doc_id].length
+                cos_score[doc_id] += query_weight[term] * tf / doc_info[doc_id].length
             else:
-                cos_score[doc_id] = query_weight[term] * float(tf) / doc_info[doc_id].length
+                cos_score[doc_id] = query_weight[term] * tf / doc_info[doc_id].length
 
     return cos_score
 
@@ -121,6 +121,53 @@ def compute_query_weight(query, dictionary, num_doc):
         term_weight[term] = wt
 
     return term_weight
+
+def phrasal_query(query, dictionary, post_file):
+    terms = map(process_term, query.split())
+
+    posting1 = load_posting_list(terms.pop(0), dictionary, post_file)
+
+    while(len(terms) > 0):
+        posting2 = load_posting_list(terms.pop(0), dictionary, post_file)
+        posting_temp = []
+        idx1 = idx2 = 0
+        
+        while idx1 < len(posting1) and idx2 < len(posting2):
+            # if doc_id match 
+            if posting1[idx1][0] == posting2[idx2][0]:
+
+                item = [posting1[idx1][0], 0]
+
+                # retrieve position
+                pp1 = map(int,posting1[idx1][2:])
+                pp2 = map(int,posting2[idx2][2:])
+
+                pidx1 = pidx2 = 0
+
+                while pidx1 < len(pp1):
+                    while pidx2 < len(pp2):
+                        if pp2[pidx2] - pp1[pidx1] == 1:
+                            item[1] += 1  # update number of matches found
+                            item.append(str(pp2[pidx2]))
+                        elif pp2[pidx2] - pp1[pidx1] > 1:
+                            break
+
+                        pidx2 += 1
+
+                    pidx1 += 1
+
+                # phrase found
+                if len(item) > 2:
+                    posting_temp.append(item)
+
+            elif posting1[idx1][0] < posting2[idx2][0]:
+                idx1 += 1
+            else:
+                idx2 += 1
+
+        posting1 = posting_temp
+
+    return map(lambda x: x[0], posting1)
 
 
 def process_term(term):
