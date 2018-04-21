@@ -9,6 +9,8 @@ from nltk.corpus import stopwords
 import string
 import math
 from collections import Counter, namedtuple, defaultdict
+from index import Document, Entry
+
 try:
     import cPickle as pickle
 except:
@@ -16,8 +18,6 @@ except:
 
 stop_words = set(stopwords.words('english'))
 
-Document = namedtuple('Document', ('title', 'length', 'court'))
-Entry = namedtuple('Entry', ('offset', 'frequency'))
 
 def search(dictionary_file, postings_file, query_file, output_file, document_file):
     start = time.time()
@@ -38,7 +38,7 @@ def search(dictionary_file, postings_file, query_file, output_file, document_fil
                 out_file.write(docID)
 
     end = time.time()
-    print(end-start)
+    print(end - start)
 
     out_file.close()
     post_file.close()
@@ -57,8 +57,8 @@ def process_query(query, dictionary, post_file, doc_info):
     doc_list = []
 
     for q in queries:
-        if q.find('\"') == 0 and q.find('\"',1) == len(q) - 1
-            q = q.replace('\"', "")
+        if q[0] == '"' and q[-1] == '"':
+            q = q.replace('"', "")
             result = phrasal_query(q, dictionary, post_file)
             doc_list.append(result)
         else:
@@ -67,9 +67,7 @@ def process_query(query, dictionary, post_file, doc_info):
             if len(query_weight) > 0:
                 term_postings = {term: load_posting_list(term, dictionary, post_file) for term in query_weight}
                 cos_score = compute_cos_similarity(query_weight, term_postings, doc_info)
-                result = []
-                for key in sorted(cos_score, key=cos_score.get, reverse=True):
-                    result.append(key)
+                result = sorted(cos_score, key=cos_score.get, reverse=True)
 
                 doc_list.append(result)
 
@@ -85,7 +83,7 @@ def process_query(query, dictionary, post_file, doc_info):
 # return a dictioary where key is doc_id,
 # and value is cos similarity score for that doc
 def compute_cos_similarity(query_weight, term_postings, doc_info):
-    cos_score = {}
+    cos_score = Counter()
 
     for term in query_weight:
         posting = term_postings[term]
@@ -93,10 +91,7 @@ def compute_cos_similarity(query_weight, term_postings, doc_info):
             doc_id = item[0]
             tf = float(item[1])
 
-            if doc_id in cos_score:
-                cos_score[doc_id] += query_weight[term] * tf / doc_info[doc_id].length
-            else:
-                cos_score[doc_id] = query_weight[term] * tf / doc_info[doc_id].length
+            cos_score[doc_id] += query_weight[term] * tf / doc_info[doc_id].length
 
     return cos_score
 
@@ -112,26 +107,27 @@ def compute_query_weight(query, dictionary, num_doc):
         elif term in dictionary and term not in stop_words:
             term_weight[term] = 1
 
-    for term, freq in term_weight.iteritems():
+    for term, freq in term_weight.items():
         df = dictionary[term][0]
-        idf_wt = math.log(float(num_doc) / df, 10)
-        tf_wt = 1 + math.log(freq, 10)
+        idf_wt = math.log10(float(num_doc) / df)
+        tf_wt = 1 + math.log10(freq)
         wt = idf_wt * tf_wt
 
         term_weight[term] = wt
 
     return term_weight
 
+
 def phrasal_query(query, dictionary, post_file):
     terms = map(process_term, query.split())
 
     posting1 = load_posting_list(terms.pop(0), dictionary, post_file)
 
-    while(len(terms) > 0):
+    while len(terms) > 0:
         posting2 = load_posting_list(terms.pop(0), dictionary, post_file)
         posting_temp = []
         idx1 = idx2 = 0
-        
+
         while idx1 < len(posting1) and idx2 < len(posting2):
             # if doc_id match 
             if posting1[idx1][0] == posting2[idx2][0]:
@@ -139,8 +135,8 @@ def phrasal_query(query, dictionary, post_file):
                 item = [posting1[idx1][0], 0]
 
                 # retrieve position
-                pp1 = map(int,posting1[idx1][2:])
-                pp2 = map(int,posting2[idx2][2:])
+                pp1 = map(int, posting1[idx1][2:])
+                pp2 = map(int, posting2[idx2][2:])
 
                 pidx1 = pidx2 = 0
 
@@ -159,6 +155,9 @@ def phrasal_query(query, dictionary, post_file):
                 # phrase found
                 if len(item) > 2:
                     posting_temp.append(item)
+
+                idx1 += 1
+                idx2 += 1
 
             elif posting1[idx1][0] < posting2[idx2][0]:
                 idx1 += 1
@@ -179,8 +178,9 @@ def process_term(term):
 def usage():
     print "usage: " + sys.argv[0] + " -d dictionary-file -p postings-file -q file-of-queries -o output-file-of-results"
 
+
 dictionary_file = postings_file = file_of_queries = output_file_of_results = None
-	
+
 try:
     opts, args = getopt.getopt(sys.argv[1:], 'd:p:q:o:')
 except getopt.GetoptError, err:
@@ -189,7 +189,7 @@ except getopt.GetoptError, err:
 
 for o, a in opts:
     if o == '-d':
-        dictionary_file  = a
+        dictionary_file = a
     elif o == '-p':
         postings_file = a
     elif o == '-q':
@@ -199,10 +199,9 @@ for o, a in opts:
     else:
         assert False, "unhandled option"
 
-if dictionary_file == None or postings_file == None or file_of_queries == None or file_of_output == None :
+if dictionary_file == None or postings_file == None or file_of_queries == None or file_of_output == None:
     usage()
     sys.exit(2)
 
 document_file = 'documents.pkl'
 search(dictionary_file, postings_file, file_of_queries, file_of_output, document_file)
-
