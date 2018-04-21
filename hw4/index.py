@@ -17,6 +17,7 @@ from sanitizer import Sanitizer
 
 Document = namedtuple('Document', ('title', 'length', 'court'))
 Entry = namedtuple('Entry', ('offset', 'frequency'))
+Posting = namedtuple('Posting', ('document_id', 'positions', 'weighted_tf'))
 
 # CSV's default field limit is a bit too small for us
 csv.field_size_limit(sys.maxsize)
@@ -44,7 +45,7 @@ def generate_dict_and_postings(data_file, pool):
             documents[document_id] = document
 
             for term, posting_list in document_postings.items():
-                postings[term].extend(posting_list)
+                postings[term].append(posting_list)
                 doc_freq[term] += 1
 
     return doc_freq, postings, documents
@@ -52,19 +53,23 @@ def generate_dict_and_postings(data_file, pool):
 
 def generate_posting(row):
     document_id = row['document_id']
-    postings = defaultdict(list)
+    positions = defaultdict(list)
     print(document_id)
 
     # Counter stores the count of every word
     words = sanitizer.tokenize(row['content'])
-    counter = Counter(words)
+    counter = Counter()
+    for index, word in enumerate(filter(None, words)):
+        counter[word] += 1
+        positions[word].append(index)
 
     # Keeps track of the current sum of tf^2
+    postings = {}
     length_sum = 0
 
-    for word in filter(None, counter.keys()):
+    for word in counter.keys():
         weighted_tf = 1 + math.log10(counter[word])
-        postings[word].append((document_id, weighted_tf))
+        postings[word] = Posting(document_id, positions[word], weighted_tf)
 
         # Add weighted_tf^2 to lengthSum
         length_sum += weighted_tf ** 2
@@ -72,6 +77,10 @@ def generate_posting(row):
     # TODO: Optimize this using objects instead of strings
     document = Document(title=row['title'], length=math.sqrt(length_sum), court=row['court'])
     return document_id, postings, document
+
+
+def format_posting(posting):
+    return "%s,%s,%s" % (posting.document_id, posting.weighted_tf, ",".join(map(str, posting.positions)))
 
 
 def write_postings(output_file_postings, postings):
@@ -82,8 +91,8 @@ def write_postings(output_file_postings, postings):
     with open(output_file_postings, 'w') as f:
         for term in sorted_terms:
             term_offsets[term] = int(f.tell())
-            # Format: doc_id,tf;doc_id,tf...
-            formatted_postings = ("%s,%s" % (doc_id, tf) for doc_id, tf in postings[term])
+            # Format: doc_id,tf,position1,position2,position3,...;doc_id,tf,position1,position2,...
+            formatted_postings = map(format_posting, postings[term])
             f.write(";".join(formatted_postings) + "\n")
 
     return term_offsets
