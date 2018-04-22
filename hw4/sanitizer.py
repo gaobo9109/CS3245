@@ -2,6 +2,7 @@ import nltk
 import re
 import numpy
 import os
+from nltk.corpus import stopwords
 
 """
 This is a sanitizer designed for hw4
@@ -19,7 +20,6 @@ WHITE_SPACE = re.compile(r'\s+')
 PATH_NOT_VALID_MESSAGE = 'Stop words path is not valid.'
 
 SCRIPT_PATH = os.path.dirname(os.path.abspath(__file__))
-DEFAULT_STOP_WORD_PATH = os.path.join(SCRIPT_PATH, './stop_words.txt')
 
 class Sanitizer:
 
@@ -83,7 +83,7 @@ class Sanitizer:
                 stop_words.add(self.tokenize(word.strip(), False)[0])
         return stop_words
 
-    def __init__(self, stop_word_path=DEFAULT_STOP_WORD_PATH, invalid_chars=DEFAULT_INVALID_CHARS):
+    def __init__(self, invalid_chars=DEFAULT_INVALID_CHARS):
         self.invalid_regex = re.compile(invalid_chars)
         self.ps = nltk.stem.PorterStemmer()
-        self.stop_words = self.__read_stop_words(stop_word_path)
+        self.stop_words = set(stopwords.words('english'))
