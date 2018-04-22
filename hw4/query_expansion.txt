@@ -1,0 +1,27 @@
+*** The methodology ***
+
+The method that we tried to use was pseudo relevence feedback.
+The basic idea was that, when user search for a query, we use the original query to
+fetch a list of top-related documents first. Then from those documents, find the
+important keywords to form new query. The definition of "important keyword" is
+that it has relatively high term frequency in a specific document while it has relatively
+low term frequency in the retrieved documents' term collections. To be more specific,
+in our design, the importance weight of a term is defined as
+
+argmax(tf * log(1/TF))
+
+where tf is the term frequency in some specific document. TF is the term frequency
+in the collection of the retrieved documents.
+
+*** Our design ***
+
+Our first attempt was the following:
+1. Used the initial indexing model and retrieved the related list of documents ids.
+2. Retrieve the list of documents with the ids.
+3. For each term in the documents, for each document, count tf.
+4. For each term in the doucments, count TF
+5. Then for each term, use max(tf * log(1/TF)) as score.
+6. Pick the top 3 terms to form a new query
+7. return queried documents using original model
+
+*** Results ***
