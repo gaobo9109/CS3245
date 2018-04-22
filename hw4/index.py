@@ -3,8 +3,9 @@ import re
 import nltk
 import sys
 import getopt
-from collections import Counter, namedtuple, defaultdict
 import csv
+from collections import Counter, namedtuple, defaultdict
+from itertools import imap
 from multiprocessing import Pool
 
 try:
@@ -38,11 +39,13 @@ def generate_dict_and_postings(data_file, pool=None):
     documents = {}
 
     with open(data_file, 'rb') as f:
-        reader = map(DatasetRow, csv.reader(f))
+        reader = imap(lambda row: DatasetRow(*row), csv.reader(f))
+        reader.next()  # Drop the header row
+
         if pool:
             results = pool.map(generate_posting, reader)
         else:
-            results = map(generate_posting, reader)
+            results = imap(generate_posting, reader)
 
         for document_id, document_postings, document in results:
             documents[document_id] = document
