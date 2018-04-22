@@ -18,9 +18,10 @@ from sanitizer import Sanitizer
 Document = namedtuple('Document', ('title', 'length', 'court'))
 Entry = namedtuple('Entry', ('offset', 'frequency'))
 Posting = namedtuple('Posting', ('document_id', 'positions', 'weighted_tf'))
+DatasetRow = namedtuple('DatasetRow', ('document_id', 'title', 'content', 'date_posted', 'court'))
 
 # CSV's default field limit is a bit too small for us
-csv.field_size_limit(sys.maxsize)
+csv.field_size_limit(2**30)
 
 # Create a sanitizer instance for us to use
 sanitizer = Sanitizer()
@@ -31,15 +32,17 @@ def usage():
 
 
 # Returns dictionary, postings, lengths and courts list based on dataset
-def generate_dict_and_postings(data_file, pool):
+def generate_dict_and_postings(data_file, pool=None):
     doc_freq = Counter()
     postings = defaultdict(list)
     documents = {}
 
     with open(data_file, 'rb') as f:
-        reader = csv.DictReader(f)
-
-        results = pool.map(generate_posting, reader)
+        reader = map(DatasetRow, csv.reader(f))
+        if pool:
+            results = pool.map(generate_posting, reader)
+        else:
+            results = map(generate_posting, reader)
 
         for document_id, document_postings, document in results:
             documents[document_id] = document
@@ -52,12 +55,12 @@ def generate_dict_and_postings(data_file, pool):
 
 
 def generate_posting(row):
-    document_id = row['document_id']
+    document_id = row.document_id
     positions = defaultdict(list)
     print(document_id)
 
     # Counter stores the count of every word
-    words = sanitizer.tokenize(row['content'])
+    words = sanitizer.tokenize(row.content)
     counter = Counter()
     for index, word in enumerate(filter(None, words)):
         counter[word] += 1
@@ -75,7 +78,7 @@ def generate_posting(row):
         length_sum += weighted_tf ** 2
 
     # TODO: Optimize this using objects instead of strings
-    document = Document(title=row['title'], length=math.sqrt(length_sum), court=row['court'])
+    document = Document(title=row.title, length=math.sqrt(length_sum), court=row.court)
     return document_id, postings, document
 
 
@@ -131,7 +134,7 @@ if __name__ == '__main__':
         sys.exit(2)
 
     output_file_documents = "documents.pkl"
-    pool = Pool(processes=4)
+    pool = None # = Pool()
     document_freq, postings, documents = generate_dict_and_postings(input_directory, pool)
     term_offsets = write_postings(output_file_postings, postings)
     write_dictionary(output_file_dictionary, document_freq, term_offsets)
