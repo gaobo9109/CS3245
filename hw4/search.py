@@ -18,6 +18,14 @@ except:
 
 stop_words = set(stopwords.words('english'))
 
+court_list_1 = ['SG Court of Appeal', 'SG Privy Council', 'UK House of Lords', 
+                'UK Supreme Court', 'High Court of Australia', 'CA Supreme Court']
+
+court_list_2 = ['SG High Court', 'Singapore International Commercial Court', 'HK High Court',
+                'HK Court of First Instance', 'UK Crown Court', 'UK Court of Appeal',
+                'UK High Court', 'Federal Court of Australia', 'NSW Court of Appeal',
+                'NSW Court of Criminal Appeal', 'NSW Supreme Court']
+
 
 def search(dictionary_file, postings_file, query_file, output_file, document_file):
     start = time.time()
@@ -66,8 +74,8 @@ def process_query(query, dictionary, post_file, doc_info):
 
             if len(query_weight) > 0:
                 term_postings = {term: load_posting_list(term, dictionary, post_file) for term in query_weight}
-                cos_score = compute_cos_similarity(query_weight, term_postings, doc_info)
-                result = sorted(cos_score, key=cos_score.get, reverse=True)
+                score = compute_score(query_weight, term_postings, doc_info)
+                result = sorted(score, key=score.get, reverse=True)
 
                 doc_list.append(result)
 
@@ -82,8 +90,8 @@ def process_query(query, dictionary, post_file, doc_info):
 
 # return a dictioary where key is doc_id,
 # and value is cos similarity score for that doc
-def compute_cos_similarity(query_weight, term_postings, doc_info):
-    cos_score = Counter()
+def compute_score(query_weight, term_postings, doc_info):
+    score = Counter()
 
     for term in query_weight:
         posting = term_postings[term]
@@ -91,9 +99,29 @@ def compute_cos_similarity(query_weight, term_postings, doc_info):
             doc_id = item[0]
             tf = float(item[1])
 
-            cos_score[doc_id] += query_weight[term] * tf / doc_info[doc_id].length
+            score[doc_id] += query_weight[term] * tf / doc_info[doc_id].length
 
-    return cos_score
+    max_score = max(score.values())
+    min_score = min(score.values())
+    diff_score = max_score - min_score
+    weightage = 0.6
+
+    for doc_id in score:
+        court = doc_info[doc_id].court
+        if court in court_list_1:
+            court_score = 1
+        elif court in court_list_2:
+            court_score = 0.5
+        else:
+            court_score = 0
+
+        # feature normalization
+        cos_score = score[doc_id]
+        cos_score = (cos_score - min_score) / diff_score
+        score[doc_id] = weightage * cos_score + (1 - weightage) * court_score
+
+
+    return score
 
 
 # return a dictionary where the key is a query term, 
