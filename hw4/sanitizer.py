@@ -10,7 +10,7 @@ object and then you can do sanitizing. You could change the stop words in
 'stop_words.txt'.
 """
 
-DEFAULT_INVALID_CHARS = re.compile(r'[^\w\d\s\-]+')
+DEFAULT_INVALID_CHARS = re.compile(r'[^a-z\s\-]+', re.I)
 DEFAULT_JUDGEMENT_REGEX = re.compile(r'judge?ment:?\n', re.I)
 DEFAULT_JUDGEMENT_KEY = 'judgment'
 LINE_BREAK = re.compile(r'\n')
