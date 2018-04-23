@@ -50,7 +50,11 @@ def decode_stream(file, count):
     numbers = []
 
     while len(numbers) < count:
-        byte = ord(file.read(1))
+        read_byte = file.read(1)
+        if not read_byte:
+            break
+
+        byte = ord(read_byte)
 
         if byte < 128:
             n = 128 * n + byte

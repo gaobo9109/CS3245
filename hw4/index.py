@@ -8,7 +8,7 @@ from struct import Struct
 from collections import Counter, namedtuple, defaultdict
 from itertools import imap
 from multiprocessing import Pool
-from operators import attrgetter
+from operator import attrgetter
 from vendor.pyvbcode import vbcode
 
 try:
@@ -43,8 +43,8 @@ def calculate_deltas(numbers):
         return numbers
 
     deltas = [numbers[0]]
-    for i in numbers[1:]:
-        deltas.append(i - deltas[-1])
+    for i, n in enumerate(numbers[1:]):
+        deltas.append(n - numbers[i])
     return deltas
 
 
@@ -54,7 +54,7 @@ def from_deltas(deltas):
 
     numbers = [deltas[0]]
     for i in deltas[1:]:
-        numbers.append(i + deltas[-1])
+        numbers.append(i + numbers[-1])
     return numbers
 
 
@@ -125,8 +125,8 @@ def write_postings(output_file_postings, postings):
     with open(output_file_postings, 'wb') as output_file:
         for term in sorted_terms:
             offset = output_file.tell()
-            delta_id = calculate_deltas(map(attrgetter('id')), postings[term])
-            
+            delta_id = calculate_deltas(map(attrgetter('id'), postings[term]))
+
             for posting, id in zip(postings[term], delta_id):
                 encoded_entry = posting_struct.pack(posting.weighted_tf)
                 encoded_entry += vbcode.encode([id, len(posting.positions)])
@@ -169,9 +169,10 @@ class Dictionary:
             if not encoded_posting:
                 break
 
-            tf = posting_struct.unpack(encoded_posting)
+            tf, = posting_struct.unpack(encoded_posting)
             delta_id, positions_len = vbcode.decode_stream(posting_file, 2)
             document_id += delta_id
+            print(delta_id)
             
             position_deltas = vbcode.decode_stream(posting_file, positions_len)
             positions = from_deltas(position_deltas)
@@ -184,16 +185,20 @@ class Dictionary:
         with open(filename, 'wb') as f:
             for term in document_freq:
                 encoded_entry = vbcode.encode([len(term), document_freq[term], term_offsets[term]])
-                f.write(encoded_entry + term)
+                f.write(encoded_entry + bytes(term))
 
     @staticmethod
     def read(filename):
         entries = {}
+
         with open(filename, 'rb') as f:
-            length, freq, offset = vbcode.decode_stream(f, 3)
-            term = f.read(length)
-            entries[term] = Entry(frequency=freq, offset=offset)
-            
+            decoded = vbcode.decode_stream(f, 3)
+            while decoded:
+                length, freq, offset = decoded
+                term = f.read(length)
+                entries[term] = Entry(frequency=freq, offset=offset)
+                decoded = vbcode.decode_stream(f, 3)
+
         return Dictionary(entries)
 
 
@@ -222,8 +227,8 @@ if __name__ == '__main__':
 
     output_file_documents = "documents.pkl"
 
-    with Pool() as pool:
-        document_freq, postings, documents = generate_dict_and_postings(input_directory, pool)
+    pool = Pool()
+    document_freq, postings, documents = generate_dict_and_postings(input_directory, pool)
     term_offsets = write_postings(output_file_postings, postings)
     Dictionary.write_from_freq_offsets(output_file_dictionary, document_freq, term_offsets)
 
