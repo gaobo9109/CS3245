@@ -18,15 +18,14 @@ DatasetRow = namedtuple('DatasetRow', ('document_id', 'title', 'content', 'date_
 csv.field_size_limit(2**30)
 sanitizer = Sanitizer()
 
-def generate_posting(args):
+def generate_sentence(args):
     id, row = args
     document_id = int(row.document_id)
-    positions = defaultdict(list)
     print(document_id)
 
     # Counter stores the count of every word
-    words = sanitizer.tokenize(row.content)
-    return words
+    content = sanitizer.extract_judgement(row.content)
+    return nltk.sent_tokenize(content)
 
 class Sentences(object):
     def __init__(self, path=None):
@@ -41,9 +40,10 @@ class Sentences(object):
             reader = imap(lambda row: DatasetRow(*row), csv.reader(f))
             reader.next()
 
-            results = pool.map(generate_posting, enumerate(reader))
-            for words in results:
-                yield words
+            results = imap(generate_sentence, enumerate(reader))
+            for sentences in results:
+                for sentence in sentences:
+                    yield sentence.split()
 
 def train():
     sentences = Sentences()
