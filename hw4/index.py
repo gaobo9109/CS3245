@@ -1,14 +1,14 @@
 #!/usr/bin/python
+from __future__ import division, print_function
 import re
 import nltk
 import sys
 import getopt
 import csv
-from struct import Struct
 from collections import Counter, namedtuple, defaultdict
 from itertools import imap
 from multiprocessing import Pool
-from operators import attrgetter
+from operator import attrgetter
 from vendor.pyvbcode import vbcode
 
 try:
@@ -30,12 +30,9 @@ csv.field_size_limit(2**30)
 # Create a sanitizer instance for us to use
 sanitizer = Sanitizer()
 
-# document_id, weighted_tf, len(positions)
-posting_struct = Struct("f")
-
 
 def usage():
-    print "usage: " + sys.argv[0] + " -i dataset-file -d dictionary-file -p postings-file"
+    print("usage: " + sys.argv[0] + " -i dataset-file -d dictionary-file -p postings-file")
 
 
 def calculate_deltas(numbers):
@@ -43,8 +40,8 @@ def calculate_deltas(numbers):
         return numbers
 
     deltas = [numbers[0]]
-    for i in numbers[1:]:
-        deltas.append(i - deltas[-1])
+    for i, n in enumerate(numbers[1:]):
+        deltas.append(n - numbers[i])
     return deltas
 
 
@@ -54,7 +51,7 @@ def from_deltas(deltas):
 
     numbers = [deltas[0]]
     for i in deltas[1:]:
-        numbers.append(i + deltas[-1])
+        numbers.append(i + numbers[-1])
     return numbers
 
 
@@ -125,11 +122,11 @@ def write_postings(output_file_postings, postings):
     with open(output_file_postings, 'wb') as output_file:
         for term in sorted_terms:
             offset = output_file.tell()
-            delta_id = calculate_deltas(map(attrgetter('id')), postings[term])
-            
+            delta_id = calculate_deltas(map(attrgetter('id'), postings[term]))
+
             for posting, id in zip(postings[term], delta_id):
-                encoded_entry = posting_struct.pack(posting.weighted_tf)
-                encoded_entry += vbcode.encode([id, len(posting.positions)])
+                decimal_tf = int(posting.weighted_tf * 10**6) if posting.weighted_tf != 1.0 else 1
+                encoded_entry = vbcode.encode([id, decimal_tf, len(posting.positions)])
                 encoded_entry += vbcode.encode(posting.positions)
                 output_file.write(encoded_entry)
 
@@ -165,14 +162,14 @@ class Dictionary:
         postings = []
         document_id = 0
         while posting_file.tell() < end:
-            encoded_posting = posting_file.read(posting_struct.size)
-            if not encoded_posting:
+            packed_posting = vbcode.decode_stream(posting_file, 3)
+            if not packed_posting:
                 break
 
-            tf = posting_struct.unpack(encoded_posting)
-            delta_id, positions_len = vbcode.decode_stream(posting_file, 2)
+            delta_id, decimal_tf, positions_len = packed_posting
+            tf = decimal_tf / 10**6 if decimal_tf != 1 else 1.0
             document_id += delta_id
-            
+
             position_deltas = vbcode.decode_stream(posting_file, positions_len)
             positions = from_deltas(position_deltas)
             
@@ -184,16 +181,20 @@ class Dictionary:
         with open(filename, 'wb') as f:
             for term in document_freq:
                 encoded_entry = vbcode.encode([len(term), document_freq[term], term_offsets[term]])
-                f.write(encoded_entry + term)
+                f.write(encoded_entry + bytes(term))
 
     @staticmethod
     def read(filename):
         entries = {}
+
         with open(filename, 'rb') as f:
-            length, freq, offset = vbcode.decode_stream(f, 3)
-            term = f.read(length)
-            entries[term] = Entry(frequency=freq, offset=offset)
-            
+            decoded = vbcode.decode_stream(f, 3)
+            while decoded:
+                length, freq, offset = decoded
+                term = f.read(length)
+                entries[term] = Entry(frequency=freq, offset=offset)
+                decoded = vbcode.decode_stream(f, 3)
+
         return Dictionary(entries)
 
 
@@ -222,8 +223,8 @@ if __name__ == '__main__':
 
     output_file_documents = "documents.pkl"
 
-    with Pool() as pool:
-        document_freq, postings, documents = generate_dict_and_postings(input_directory, pool)
+    pool = Pool()
+    document_freq, postings, documents = generate_dict_and_postings(input_directory, pool)
     term_offsets = write_postings(output_file_postings, postings)
     Dictionary.write_from_freq_offsets(output_file_dictionary, document_freq, term_offsets)
 
