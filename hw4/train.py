@@ -36,7 +36,7 @@ class Sentences(object):
 
     def __iter__(self):
         pool = Pool()
-        file_name = self.path + '/dataset.csv'
+        file_name = 'dataset.csv'
         with open(file_name, 'rb') as f:
             reader = imap(lambda row: DatasetRow(*row), csv.reader(f))
             reader.next()
