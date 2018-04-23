@@ -9,7 +9,7 @@ from nltk.corpus import stopwords
 import string
 import math
 from collections import Counter, namedtuple, defaultdict
-from index import Document, Entry
+from index import Document, Entry, Posting, Dictionary
 
 try:
     import cPickle as pickle
@@ -28,12 +28,14 @@ court_list_2 = ['SG High Court', 'Singapore International Commercial Court', 'HK
 
 
 def search(dictionary_file, postings_file, query_file, output_file, document_file):
-    start = time.time()
+
     out_file = open(output_file, 'w')
     post_file = open(postings_file, 'r')
-    dictionary = pickle.load(open(dictionary_file, 'rb'))
+    dictionary = Dictionary.read(dictionary_file)
     doc_info = pickle.load(open(document_file, 'rb'))
 
+
+    start = time.time()
     with open(query_file, 'r') as input, open(output_file, 'w') as output:
         results = []
 
@@ -42,7 +44,8 @@ def search(dictionary_file, postings_file, query_file, output_file, document_fil
             if not query:
                 continue
             result = process_query(query, dictionary, post_file, doc_info)
-            result.append(' '.join(map(str, result)))
+            results.append(' '.join(map(str, result)))
+
         output.write("\n".join(results))
 
     end = time.time()
@@ -52,38 +55,37 @@ def search(dictionary_file, postings_file, query_file, output_file, document_fil
     post_file.close()
 
 
-def load_posting_list(term, dictionary, post_file):
-    offset = dictionary[term].offset
-    post_file.seek(offset)
-    data = post_file.readline()
-    posting_list = map(lambda x: x.split(','), data.split(';'))
-    return posting_list
-
-
 def process_query(query, dictionary, post_file, doc_info):
     queries = map(lambda s: s.strip(), query.split('AND'))
-    doc_list = []
+    phrase_list = []
+    tf_idf_list = []
+    print(queries)
 
     for q in queries:
         if q[0] == '"' and q[-1] == '"':
             q = q.replace('"', "")
-            result = phrasal_query(q, dictionary, post_file)
-            doc_list.append(result)
+            result = phrasal_query(q, dictionary, post_file, doc_info)
+            phrase_list.extend(result)
         else:
             query_weight = compute_query_weight(query, dictionary, len(doc_info))
 
             if len(query_weight) > 0:
-                term_postings = {term: load_posting_list(term, dictionary, post_file) for term in query_weight}
+                term_postings = {term: dictionary.read_posting(term, post_file) for term in query_weight}
                 score = compute_score(query_weight, term_postings, doc_info)
                 result = sorted(score, key=score.get, reverse=True)
 
-                doc_list.append(result)
+                tf_idf_list.extend(result)
 
-    if len(doc_list) == 1:
-        doc_list = doc_list[0]
+    if len(phrase_list) > 0 and len(tf_idf_list) == 0:
+        doc_list = [doc_info[doc_id].document_id for doc_id in phrase_list]
+    elif len(phrase_list) == 0 and len(tf_idf_list) > 0:
+        doc_list = [doc_info[doc_id].document_id for doc_id in tf_idf_list]
     else:
-        # TODO: combine multiple lists
-        pass
+        doc_list = []
+        for doc_id in tf_idf_list:
+            if doc_id in phrase_list:
+                doc_list.append(doc_info[doc_id].document_id)
+
 
     return doc_list
 
@@ -96,29 +98,34 @@ def compute_score(query_weight, term_postings, doc_info):
     for term in query_weight:
         posting = term_postings[term]
         for item in posting:
-            doc_id = item[0]
-            tf = float(item[1])
+            doc_id = item.id
+            tf = item.weighted_tf
 
             score[doc_id] += query_weight[term] * tf / doc_info[doc_id].length
 
-    max_score = max(score.values())
-    min_score = min(score.values())
-    diff_score = max_score - min_score
-    weightage = 0.6
+    # max_score = max(score.values())
+    # min_score = min(score.values())
+    # diff_score = max_score - min_score
+    # weightage = 0.4
 
-    for doc_id in score:
-        court = doc_info[doc_id].court
-        if court in court_list_1:
-            court_score = 1
-        elif court in court_list_2:
-            court_score = 0.5
-        else:
-            court_score = 0
+    # for doc_id in score:
+    #     court = doc_info[doc_id].court
+    #     if court in court_list_1:
+    #         court_score = 1
+    #     elif court in court_list_2:
+    #         court_score = 0.5
+    #     else:
+    #         court_score = 0
 
-        # feature normalization
-        cos_score = score[doc_id]
-        cos_score = (cos_score - min_score) / diff_score
-        score[doc_id] = weightage * cos_score + (1 - weightage) * court_score
+    #     # feature normalization
+    #     cos_score = score[doc_id]
+    #     cos_score = (cos_score - min_score) / diff_score
+    #     score[doc_id] = weightage * cos_score + (1 - weightage) * court_score
+
+    # result = sorted(score, key=score.get, reverse=True)
+    # scores = [score[doc_id] for doc_id in result]
+    # id_list = result[:10]
+    # analyse(id_list, scores, doc_info)
 
 
     return score
@@ -132,11 +139,12 @@ def compute_query_weight(query, dictionary, num_doc):
         term = process_term(term)
         if term in term_weight:
             term_weight[term] += 1
-        elif term in dictionary and term not in stop_words:
+        elif term in dictionary.terms and term not in stop_words:
             term_weight[term] = 1
 
     for term, freq in term_weight.items():
-        df = dictionary[term][0]
+        entry, end = dictionary.get_term(term)
+        df = entry.frequency
         idf_wt = math.log10(float(num_doc) / df)
         tf_wt = 1 + math.log10(freq)
         wt = idf_wt * tf_wt
@@ -146,55 +154,56 @@ def compute_query_weight(query, dictionary, num_doc):
     return term_weight
 
 
-def phrasal_query(query, dictionary, post_file):
+def phrasal_query(query, dictionary, post_file, doc_info):
     terms = map(process_term, query.split())
 
-    posting1 = load_posting_list(terms.pop(0), dictionary, post_file)
+    posting1 = dictionary.read_posting(terms.pop(0), post_file)
 
     while len(terms) > 0:
-        posting2 = load_posting_list(terms.pop(0), dictionary, post_file)
+        posting2 = dictionary.read_posting(terms.pop(0), post_file)
         posting_temp = []
-        idx1 = idx2 = 0
+        i1 = i2 = 0
 
-        while idx1 < len(posting1) and idx2 < len(posting2):
+        while i1 < len(posting1) and i2 < len(posting2):
             # if doc_id match 
-            if posting1[idx1][0] == posting2[idx2][0]:
+            if posting1[i1].id == posting2[i2].id:
 
-                item = [posting1[idx1][0], 0]
+                # construct intermediate posting
+                item = Posting(posting1[i1].id, [], 0)
 
                 # retrieve position
-                pp1 = map(int, posting1[idx1][2:])
-                pp2 = map(int, posting2[idx2][2:])
+                pp1 = posting1[i1].positions
+                pp2 = posting2[i2].positions
 
-                pidx1 = pidx2 = 0
+                j1 = j2 = 0
 
-                while pidx1 < len(pp1):
-                    while pidx2 < len(pp2):
-                        if pp2[pidx2] - pp1[pidx1] == 1:
-                            item[1] += 1  # update number of matches found
-                            item.append(str(pp2[pidx2]))
-                        elif pp2[pidx2] - pp1[pidx1] > 1:
+                while j1 < len(pp1):
+                    while j2 < len(pp2):
+                        # record the position of second word of the phrase
+                        if pp2[j2] - pp1[j1] == 1:
+                            item.positions.append(pp2[j2])
+                        elif pp2[j2] - pp1[j1] > 1:
                             break
 
-                        pidx2 += 1
+                        j2 += 1
 
-                    pidx1 += 1
+                    j1 += 1
 
                 # phrase found
-                if len(item) > 2:
+                if len(item.positions) > 0:
                     posting_temp.append(item)
 
-                idx1 += 1
-                idx2 += 1
+                i1 += 1
+                i2 += 1
 
-            elif posting1[idx1][0] < posting2[idx2][0]:
-                idx1 += 1
+            elif posting1[i1].id < posting2[i2].id:
+                i1 += 1
             else:
-                idx2 += 1
+                i2 += 1
 
         posting1 = posting_temp
 
-    return map(lambda x: x[0], posting1)
+    return map(lambda x: x.id, posting1)
 
 
 def process_term(term):
@@ -202,6 +211,11 @@ def process_term(term):
     word = stemmer.stem(term.lower().translate(None, string.punctuation))
     return word
 
+def analyse(doc_list, scores, doc_info):
+    for id, score in zip(doc_list, scores):
+        doc_id = doc_info[id].document_id
+        court = doc_info[id].court
+        print doc_id, score, court
 
 def usage():
     print "usage: " + sys.argv[0] + " -d dictionary-file -p postings-file -q file-of-queries -o output-file-of-results"
