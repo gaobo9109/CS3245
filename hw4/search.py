@@ -34,16 +34,16 @@ def search(dictionary_file, postings_file, query_file, output_file, document_fil
     dictionary = pickle.load(open(dictionary_file, 'rb'))
     doc_info = pickle.load(open(document_file, 'rb'))
 
-    with open(query_file, 'r') as file:
-        for query in file:
+    with open(query_file, 'r') as input, open(output_file, 'w') as output:
+        results = []
+
+        for query in input:
             query = query.rstrip()
-            if query:
-                result = process_query(query, dictionary, post_file, doc_info)
-                docID = ''
-                for term in result:
-                    docID += str(term) + ' '
-                docID = docID[0:-1] + '\n'
-                out_file.write(docID)
+            if not query:
+                continue
+            result = process_query(query, dictionary, post_file, doc_info)
+            result.append(' '.join(map(str, result)))
+        output.write("\n".join(results))
 
     end = time.time()
     print(end - start)
