@@ -26,5 +26,6 @@ if __name__ == "__main__":
     for sent in results:
         sentences.extend(sent)
 
-    with open('sentences.pkl', 'wb') as f:
-        pickle.dump(sentences, f)
+    with open('sentences.txt', 'w') as f:
+        for sentence in sentences:
+            f.write(' '.join(sentence) + '\n')

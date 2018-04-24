@@ -8,33 +8,15 @@ from collections import Counter, namedtuple, defaultdict
 
 csv.field_size_limit(2**30)
 sanitizer = Sanitizer()
-filename = 'dataset.csv'
-
-
-class Sentences:
-    def __init__(self, filename):
-        self.filename = filename
-        self.reader = csv.reader(open(filename, 'rb'))
-        self.reader.next()
-        self.sentences = []
-    
-    def __iter__(self):
-        return Sentences(self.filename)
-
-    def next(self):
-        if not self.sentences:
-            document_id, title, content, date_posted, court = self.reader.next()
-            judgement = sanitizer.extract_judgement(content)            
-            self.sentences = nltk.sent_tokenize(unicode(judgement, errors='ignore'))
-            
-        return sanitizer.tokenize(self.sentences.pop())
-
-    __next__ = next # Python 3 compatibility
+filename = 'sentences.txt'
 
 
 def train():
+    with open(filename) as f:
+        sentences = map(lambda s: s.strip().split(), f)
+    
     model = word2vec.Word2Vec(
-        Sentences(filename), sg=1, size=200, window=5, min_count=5, iter=5, workers=8)
+        sentences, sg=1, size=200, window=5, min_count=5, iter=5, workers=8)
     model.save('vectors.model')
 
 if __name__ == "__main__":
