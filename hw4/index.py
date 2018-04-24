@@ -7,6 +7,7 @@ import sys
 import getopt
 import csv
 import vbcode
+import time
 from collections import Counter, namedtuple, defaultdict
 from itertools import imap
 from multiprocessing import Pool
@@ -30,6 +31,15 @@ csv.field_size_limit(2**30)
 
 # Create a sanitizer instance for us to use
 sanitizer = Sanitizer()
+
+last_checkpoint = time.time()
+
+
+def log(text):
+    global last_checkpoint
+    now = time.time()
+    print("{} [+{}]".format(text, (now - last_checkpoint)))
+    last_checkpoint = now
 
 
 def usage():
@@ -66,10 +76,13 @@ def generate_dict_and_postings(data_file, pool=None):
         reader = imap(lambda row: DatasetRow(*row), csv.reader(f))
         reader.next()  # Drop the header row
 
+        log("Starting generate_posting")
         if pool:
             results = pool.map(generate_posting, enumerate(reader))
         else:
             results = imap(generate_posting, enumerate(reader))
+
+        log("Collecting results from generate_posting")
 
         for result in results:
             if not result:
@@ -94,7 +107,6 @@ def generate_posting(args):
 
     document_id = int(row.document_id)
     positions = defaultdict(list)
-    print(document_id)
 
     # Counter stores the count of every word
     words = sanitizer.tokenize(sanitizer.sanitize(row.content))
@@ -146,9 +158,11 @@ def write_postings(output_file_postings, postings, pool=None):
     else:
         results = imap(encode_posting, postings.items())
 
+    log("Encoding entries")
     encoded_entries = dict(results)
     sorted_terms = sorted(postings)
 
+    log("Writing entries to disk")
     with open(output_file_postings, 'wb') as output_file:
         for term in sorted_terms:
             offset = output_file.tell()
@@ -251,7 +265,11 @@ if __name__ == '__main__':
 
     document_freq, postings, documents = generate_dict_and_postings(input_directory, pool)
     term_offsets = write_postings(output_file_postings, postings)
+    log("Writing dictionary to disk")
     Dictionary.write_from_freq_offsets(output_file_dictionary, document_freq, term_offsets)
 
+    log("Writing documents to disk")
     with open(output_file_documents, 'wb') as f:
         pickle.dump(documents, f, protocol=2)
+
+    log("All done!")
