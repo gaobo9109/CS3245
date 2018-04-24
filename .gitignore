@@ -1,2 +1,5 @@
 *.pyc
-/hw4/dataset.csv
+*.zip
+*.csv
+*.pkl
+/hw4/models
