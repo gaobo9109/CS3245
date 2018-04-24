@@ -71,7 +71,11 @@ def generate_dict_and_postings(data_file, pool=None):
         else:
             results = imap(generate_posting, enumerate(reader))
 
-        for id, document_postings, document in results:
+        for result in results:
+            if not result:
+                continue
+
+            id, document_postings, document = result
             documents[id] = document
 
             for term, posting_list in document_postings.items():
@@ -83,6 +87,11 @@ def generate_dict_and_postings(data_file, pool=None):
 
 def generate_posting(args):
     id, row = args
+
+    # Some documents are completely empty. We'll skip them
+    if sanitizer.is_restricted_document(row.content):
+        return None
+
     document_id = int(row.document_id)
     positions = defaultdict(list)
     print(document_id)

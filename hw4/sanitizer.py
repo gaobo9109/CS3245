@@ -1,3 +1,4 @@
+from __future__ import division
 import nltk
 import re
 import numpy
@@ -11,11 +12,42 @@ object and then you can do sanitizing. You could change the stop words in
 'stop_words.txt'.
 """
 
+# Remove all non-ASCII, whitespace and - (dash) characters
 DEFAULT_INVALID_CHARS = re.compile(r'[^a-z\s\-]+', re.I)
-DEFAULT_JUDGEMENT_REGEX = re.compile(r'^\s*judge?ment\s*:?\s*\n', re.I)
 
+# Regex used to split off judgement from the metadata at the start of the document
+JUDGEMENT_DELIMITERS = [
+    # Try to match the word JUDGEMENT as it appears in the various forms. Take note of
+    #  - Whitespace in front and behind
+    #  - American vs. British spelling (extra 'e' after 'g')
+    #  - Colon afterwards
+    #  - Space B E T W E E N each character
+    #  - Match when it is the only word on the line (anchor to start and end line breaks)
+    re.compile(r'(^|\n)\s*j\s*u\s*d\s*g\s*e*\s*m\s*e\s*n\s*t\s*:?\s*\n', re.I),
+
+    # Used in High Court
+    re.compile(r'\n\s*Judge?ment\s+reserved.?\s*\n', re.I),
+
+    # Used in Appeal Court
+    re.compile(r'\n\s*Cur\s+Adv\s+Vult\s*\n', re.I),
+
+    # Used in NSW Courts
+    re.compile(r'\n\s*REASONS\s+FOR\s+JUDGE?MENT\s*\n'),
+
+    # Used in NSW Courts
+    re.compile(r'^\s*REMARKS\s+ON\s+SENTENCE\b', re.I),
+]
+
+# For removing boilerplate text at the end of content
+DOCUMENT_END_PREFIX = [
+    'DISCLAIMER - Every effort has been made to comply',
+    'I certify that the preceding',
+]
+
+RESTRICTED_TEXT_REGEX = re.compile(r'The text of decision for[^\n]*has been restricted', re.I)
+
+# For removing other junk in the documents
 PAGE_NUMBER_REGEX = re.compile(r'\[Page \d+\]', re.I)
-DISCLAIMER_PREFIX = 'DISCLAIMER - Every effort has been made to comply'
 CDATA_SUFFIX = '//]]>'
 
 LINE_BREAK = re.compile(r'\n+')
@@ -42,9 +74,15 @@ class Sanitizer:
     def sanitize(self, text):
         # Remove JS junk from top of text
         text = remove_until(text, CDATA_SUFFIX)
-        text = remove_from(text, DISCLAIMER_PREFIX)
 
+        # Remove disclaimer text and other boilerplate at the end of the text
+        for prefix in DOCUMENT_END_PREFIX:
+            text = remove_from(text, prefix)
+
+        # Remove page number embedded inside text
         text = self.remove_page_numbers(text)
+
+        # Try to extract the judgement from the text
         return self.extract_judgement(text)
 
     def tokenize(self, text):
@@ -74,34 +112,46 @@ class Sanitizer:
         The basic idea is that break the document to paragraphs (according to new line)
         Keep an average value of the first k paragraphs. When the k + 1 element is
         greater than double of the size of the average, regard the paragraphs
-        from k + 1 are from content
-        """
-        breaked = re.split(LINE_BREAK, content)
-        white_removed = [re.sub(WHITE_SPACE, '', line) for line in breaked]
-        sample = white_removed[:2]
-        average_length = numpy.mean([len(x) for x in sample])
+        from k + 1 are from content"""
+        lines = filter(str.strip, re.split(LINE_BREAK, content))
+        line_lengths = map(lambda line: len(self.__remove_whitespace(line)), lines)
 
-        break_index = 0
-        for i in range(2, len(white_removed)):
-            if len(white_removed[i]) < average_length * 2:
-                average_length = numpy.mean([average_length, len(white_removed[i])])
+        if len(lines) < 2:
+            return content
+
+        total_length = sum(line_lengths)
+        current_length = line_lengths[0] + line_lengths[1]
+
+        i = 2
+        for i in range(2, len(lines)):
+            line_len = line_lengths[i]
+            if line_len < (current_length / i) * 2 and current_length < total_length * SANITIZE_CUTOFF:
+                current_length += line_len
             else:
-                break_index = i
                 break
-        return '\n'.join(breaked[break_index:])
 
-    def extract_judgement(self, content, judgement_regex=DEFAULT_JUDGEMENT_REGEX):
+        return '\n'.join(lines[i:])
+
+    def __remove_whitespace(self, line):
+        return re.sub(WHITE_SPACE, '', line)
+
+    def extract_judgement(self, content):
         """Extracts the judgement part according to the key word
-        Returns a text block (string) of judgement text
-        """
-        match = re.search(judgement_regex, content)
-        if match:
-            return content[match.end():]
-        else:
-            return self.__extract_without_key(content)
+        Returns a text block (string) of judgement text"""
+        for regex in JUDGEMENT_DELIMITERS:
+            match = re.search(regex, content)
+
+            if match and (match.end() < 1000 or match.end() / len(content) < SANITIZE_CUTOFF):
+                return content[match.end():]
+
+        return self.__extract_without_key(content)
 
     def remove_page_numbers(self, content):
         return re.sub(PAGE_NUMBER_REGEX, ' ', content)
+
+    def is_restricted_document(self, content):
+        return 'The text of this decision has been restricted' in content \
+               or re.search(RESTRICTED_TEXT_REGEX, content)
 
     def __init__(self, invalid_chars=DEFAULT_INVALID_CHARS):
         self.invalid_regex = re.compile(invalid_chars)
