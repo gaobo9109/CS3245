@@ -12,7 +12,7 @@ object and then you can do sanitizing. You could change the stop words in
 """
 
 DEFAULT_INVALID_CHARS = re.compile(r'[^a-z\s\-]+', re.I)
-DEFAULT_JUDGEMENT_REGEX = re.compile(r'judge?ment\s*:?\s*\n', re.I)
+DEFAULT_JUDGEMENT_REGEX = re.compile(r'^\s*judge?ment\s*:?\s*\n', re.I)
 DEFAULT_JUDGEMENT_KEY = 'judgment'
 PAGE_NUMBER_REGEX = re.compile(r'\[Page \d+\]', re.I)
 DISCLAIMER_PREFIX = 'DISCLAIMER - Every effort has been made to comply'
