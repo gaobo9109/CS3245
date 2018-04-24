@@ -1,54 +1,40 @@
-import os
-import re
-import logging
-import csv
-import sys
 import nltk
+import csv
+import re
 from itertools import imap
 from gensim.models import word2vec
 from sanitizer import Sanitizer
 from collections import Counter, namedtuple, defaultdict
-from multiprocessing import Pool
-
-Document = namedtuple('Document', ('document_id', 'title', 'length', 'court'))
-Entry = namedtuple('Entry', ('offset', 'frequency'))
-Posting = namedtuple('Posting', ('id', 'positions', 'weighted_tf'))
-DatasetRow = namedtuple('DatasetRow', ('document_id', 'title', 'content', 'date_posted', 'court'))
 
 csv.field_size_limit(2**30)
 sanitizer = Sanitizer()
+filename = 'dataset.csv'
 
-def generate_sentence(args):
-    id, row = args
-    document_id = int(row.document_id)
-    print(document_id)
 
-    # Counter stores the count of every word
-    content = sanitizer.extract_judgement(row.content)
-    return nltk.sent_tokenize(content)
-
-class Sentences(object):
-    def __init__(self, path=None):
-        if not path:
-            path = "corpus"
-        self.path = path
-
+class Sentences:
+    def __init__(self, filename):
+        self.filename = filename
+        self.reader = csv.reader(open(filename, 'rb'))
+        self.reader.next()
+        self.sentences = []
+    
     def __iter__(self):
-        pool = Pool()
-        file_name = 'dataset.csv'
-        with open(file_name, 'rb') as f:
-            reader = imap(lambda row: DatasetRow(*row), csv.reader(f))
-            reader.next()
+        return Sentences(self.filename)
 
-            results = imap(generate_sentence, enumerate(reader))
-            for sentences in results:
-                for sentence in sentences:
-                    yield sentence.split()
+    def next(self):
+        if not self.sentences:
+            document_id, title, content, date_posted, court = self.reader.next()
+            judgement = sanitizer.extract_judgement(content)            
+            self.sentences = nltk.sent_tokenize(unicode(judgement, errors='ignore'))
+            
+        return sanitizer.tokenize(self.sentences.pop())
+
+    __next__ = next # Python 3 compatibility
+
 
 def train():
-    sentences = Sentences()
     model = word2vec.Word2Vec(
-        sentences, sg=1, size=200, window=5, min_count=5, iter=5)
+        Sentences(filename), sg=1, size=200, window=5, min_count=5, iter=5, workers=8)
     model.save('vectors.model')
 
 if __name__ == "__main__":
