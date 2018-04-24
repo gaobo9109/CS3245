@@ -114,22 +114,35 @@ def generate_posting(args):
     return id, postings, document
 
 
-def write_postings(output_file_postings, postings):
+def encode_posting(args):
+    term, postings = args
+    delta_id = calculate_deltas(map(attrgetter('id'), postings))
+    encoded_entry = b''
+
+    for posting, id in zip(postings, delta_id):
+        decimal_tf = int(posting.weighted_tf * 10 ** 6) if posting.weighted_tf != 1.0 else 1
+        encoded_entry += vbcode.encode([id, decimal_tf, len(posting.positions)])
+        encoded_entry += vbcode.encode(posting.positions)
+
+    return term, encoded_entry
+
+
+def write_postings(output_file_postings, postings, pool=None):
     # List of corresponding posting lists and their starting bytes
     term_offsets = {}
+
+    if pool:
+        results = pool.map(encode_posting, postings.items())
+    else:
+        results = imap(encode_posting, postings.items())
+
+    encoded_entries = dict(results)
     sorted_terms = sorted(postings)
 
     with open(output_file_postings, 'wb') as output_file:
         for term in sorted_terms:
             offset = output_file.tell()
-            delta_id = calculate_deltas(map(attrgetter('id'), postings[term]))
-
-            for posting, id in zip(postings[term], delta_id):
-                decimal_tf = int(posting.weighted_tf * 10**6) if posting.weighted_tf != 1.0 else 1
-                encoded_entry = vbcode.encode([id, decimal_tf, len(posting.positions)])
-                encoded_entry += vbcode.encode(posting.positions)
-                output_file.write(encoded_entry)
-
+            output_file.write(encoded_entries[term])
             term_offsets[term] = offset
 
     return term_offsets
