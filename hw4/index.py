@@ -87,7 +87,7 @@ def generate_posting(args):
     print(document_id)
 
     # Counter stores the count of every word
-    words = sanitizer.tokenize(row.content)
+    words = sanitizer.tokenize(sanitizer.sanitize(row.content))
     counter = Counter()
     for index, word in enumerate(filter(None, words)):
         counter[word] += 1
