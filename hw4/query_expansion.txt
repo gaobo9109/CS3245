@@ -1,6 +1,7 @@
-*** The methodology ***
-
-The method that we tried to use was pseudo relevence feedback.
+************
+* Method 1 *
+************
+The method that we tried to use was pseudo relevance feedback.
 The basic idea was that, when user search for a query, we use the original query to
 fetch a list of top-related documents first. Then from those documents, find the
 important keywords to form new query. The definition of "important keyword" is
@@ -13,15 +14,43 @@ argmax(tf * log(1/TF))
 where tf is the term frequency in some specific document. TF is the term frequency
 in the collection of the retrieved documents.
 
-*** Our design ***
+*** Design ***
 
 Our first attempt was the following:
 1. Used the initial indexing model and retrieved the related list of documents ids.
 2. Retrieve the list of documents with the ids.
 3. For each term in the documents, for each document, count tf.
-4. For each term in the doucments, count TF
+4. For each term in the documents, count TF
 5. Then for each term, use max(tf * log(1/TF)) as score.
 6. Pick the top 3 terms to form a new query
 7. return queried documents using original model
 
-*** Results ***
+*** Result ***
+
+This method requires a large amount of space to store the file contents (since we
+need them to abstract out key terms). Due to the time and space constrain, we decided
+to use other methods.
+
+************
+* Method 2 *
+************
+
+This method is rather straightforward. The idea is to expand the query using thesaurus.
+For each term in the query, find the synonym using the thesaurus, append them to the
+original query and then proceed to search.
+
+*** Design ***
+
+We were using word2vector to train a language model for synonyms using the content
+part of all the documents. Then for each term in query, use the trained model to find
+synonym. After that, append all synonyms to the original query and do normal search.
+
+*** Result ***
+
+It works but the result is not efficient as expected. Generally speaking the query
+time increases due to the synonyms, especially for long queries. The synonyms are
+not well chosen most of the cases since we are dealing with terms separately.
+
+*** Possible Improvement ***
+
+Maybe could find "synonyms" for phrases if possible.
