@@ -5,11 +5,12 @@ import nltk
 import sys
 import getopt
 import csv
+import vbcode
 from collections import Counter, namedtuple, defaultdict
 from itertools import imap
 from multiprocessing import Pool
 from operator import attrgetter
-from vendor.pyvbcode import vbcode
+
 
 try:
     import cPickle as pickle
