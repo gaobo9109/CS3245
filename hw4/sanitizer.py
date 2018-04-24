@@ -1,6 +1,7 @@
 import nltk
 import re
 import numpy
+import pickle
 from config import *
 
 """
@@ -46,13 +47,21 @@ class Sanitizer:
         text = self.remove_page_numbers(text)
         return self.extract_judgement(text)
 
-    def tokenize(self, text, remove_stop_words=True):
+    def tokenize(self, text):
         """Tokenizes text by removing invalid characters, putting to lower case and stemming
         Return a list of sanitized tokens from the given text"""
-        tokens = map(lambda t: re.sub(self.invalid_regex, '', t), nltk.word_tokenize(text.decode('utf-8')))
-        tokens = map(lambda t: self.ps.stem(t.lower()), filter(None, tokens))
-        if remove_stop_words:
-            tokens = filter(lambda t: t not in STOPWORDS, tokens)
+        # Remove invalid characters, make lowercase
+        text = re.sub(self.invalid_regex, ' ', text.decode('utf-8').lower())
+
+        # Tokenize and remove stop words
+        tokens = filter(lambda t: t not in STOPWORDS, nltk.word_tokenize(text))
+
+        # Stem all tokens
+        tokens = map(self.ps.stem, filter(None, tokens))
+
+        # US to UK translation
+        tokens = map(lambda t: self.us_to_uk.get(t, t), tokens)
+
         return tokens
 
     def __merge_content_after(self, array, index, key):
@@ -97,3 +106,13 @@ class Sanitizer:
     def __init__(self, invalid_chars=DEFAULT_INVALID_CHARS):
         self.invalid_regex = re.compile(invalid_chars)
         self.ps = nltk.stem.PorterStemmer()
+
+        try:
+            with open('us-uk.pkl', 'rb') as f:
+                self.us_to_uk = pickle.load(f)
+        except IOError as e:
+            print 'Cannot load US-UK translation table'
+            print e
+
+            self.us_to_uk = {}
+
