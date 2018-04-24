@@ -6,7 +6,6 @@ import getopt
 import time
 from nltk.stem import *
 from nltk.corpus import stopwords
-from gensim.models import word2vec
 import string
 import math
 from collections import Counter, namedtuple, defaultdict
@@ -17,8 +16,17 @@ try:
 except:
     import pickle
 
+try:
+    from gensim.models import word2vec
+except:
+    pass
+
 stop_words = set(stopwords.words('english'))
-model = word2vec.Word2Vec.load('model/vectors.model')
+
+try:
+    model = word2vec.Word2Vec.load('model/vectors.model')
+except:
+    model = None
 
 court_list_1 = ['SG Court of Appeal', 'SG Privy Council', 'UK House of Lords',
                 'UK Supreme Court', 'High Court of Australia', 'CA Supreme Court']
@@ -62,7 +70,7 @@ def expand_query(query):
 def process_query(query, dictionary, post_file, doc_info, expansion):
     # check if the query is free text or boolean
     if query.find('"') == -1 and query.find('AND') == -1:
-        if expansion:
+        if expansion and model:
             query = expand_query(query)
         doc_list = free_text_query(query, dictionary, post_file, doc_info)
     else:
@@ -90,7 +98,7 @@ def boolean_query(query, dictionary, post_file, doc_info, expansion):
     for q in queries:
         if q[0] == '"' and q[-1] == '"':
             q = q.replace('"', "")
-        if expansion:
+        if expansion and model:
             q = expand_query(q)
         result = phrasal_query(q, dictionary, post_file, doc_info)
         results.append(result)
@@ -279,4 +287,4 @@ if dictionary_file == None or postings_file == None or file_of_queries == None o
     sys.exit(2)
 
 document_file = 'documents.pkl'
-search(dictionary_file, postings_file, file_of_queries, file_of_output, document_file, expansion=True)
+search(dictionary_file, postings_file, file_of_queries, file_of_output, document_file)
