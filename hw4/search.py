@@ -1,32 +1,23 @@
 #!/usr/bin/python
-import re
 import nltk
 import sys
 import getopt
 import time
-from nltk.stem import *
-from nltk.corpus import stopwords
 import string
 import math
-from collections import Counter, namedtuple, defaultdict
+from nltk.stem import PorterStemmer
+from nltk.corpus import stopwords
+from collections import Counter
 from index import Document, Entry, Posting, Dictionary
 
 try:
     import cPickle as pickle
-except:
+except ImportError:
     import pickle
 
-try:
-    from gensim.models import word2vec
-except:
-    pass
-
+model = None
 stop_words = set(stopwords.words('english'))
-
-try:
-    model = word2vec.Word2Vec.load('model/vectors.model')
-except:
-    model = None
+stemmer = PorterStemmer()
 
 court_list_1 = ['SG Court of Appeal', 'SG Privy Council', 'UK House of Lords',
                 'UK Supreme Court', 'High Court of Australia', 'CA Supreme Court']
@@ -36,20 +27,19 @@ court_list_2 = ['SG High Court', 'Singapore International Commercial Court', 'HK
                 'UK High Court', 'Federal Court of Australia', 'NSW Court of Appeal',
                 'NSW Court of Criminal Appeal', 'NSW Supreme Court']
 
+
 def search(dictionary_file, postings_file, query_file, output_file, document_file, expansion=False):
-
-    out_file = open(output_file, 'w')
-    post_file = open(postings_file, 'rb')
     dictionary = Dictionary.read(dictionary_file)
-    doc_info = pickle.load(open(document_file, 'rb'))
 
+    with open(document_file, 'rb') as f:
+        doc_info = pickle.load(f)
 
     start = time.time()
-    with open(query_file, 'r') as input, open(output_file, 'w') as output:
+    with open(query_file, 'r') as input, open(output_file, 'w') as output, open(postings_file, 'rb') as post_file:
         results = []
 
         for query in input:
-            query = query.rstrip()
+            query = query.strip()
             if not query:
                 continue
             result = process_query(query, dictionary, post_file, doc_info, expansion)
@@ -60,28 +50,44 @@ def search(dictionary_file, postings_file, query_file, output_file, document_fil
     end = time.time()
     print(end - start)
 
-    out_file.close()
-    post_file.close()
 
-def expand_query(query):
-    expanded = [model.most_similar(term)[0][0].encode('ascii', 'ignore') for term in query.split()]
-    return ' '.join(expanded)
+def expand_query(query_terms):
+    expanded_terms = []
+
+    for term in query_terms:
+        try:
+            similar = model.most_similar(term)
+            if not similar:
+                continue
+
+            synonym, score = similar.pop(0)
+            while score > 0.8:
+                expanded_terms.append(synonym)
+                synonym, score = similar.pop(0)
+
+        except KeyError:
+            # Term not in vocabulary - just skip it
+            pass
+
+    return expanded_terms
+
 
 def process_query(query, dictionary, post_file, doc_info, expansion):
     # check if the query is free text or boolean
-    if query.find('"') == -1 and query.find('AND') == -1:
+    if '"' not in query and 'AND' not in query:
+        query_terms = map(process_term, query.split())
         if expansion and model:
-            query = expand_query(query)
-        doc_list = free_text_query(query, dictionary, post_file, doc_info)
+            query_terms.extend(expand_query(query_terms))
+        doc_list = free_text_query(query_terms, dictionary, post_file, doc_info)
     else:
-        doc_list = boolean_query(query, dictionary, post_file, doc_info, expansion)
+        doc_list = boolean_query(query, dictionary, post_file, doc_info)
     return doc_list
 
 
-def free_text_query(query, dictionary, post_file, doc_info):
-    query_weight = compute_query_weight(query, dictionary, len(doc_info))
+def free_text_query(query_terms, dictionary, post_file, doc_info):
+    query_weight = compute_query_weight(query_terms, dictionary, len(doc_info))
 
-    if len(query_weight) > 0:
+    if query_weight:
         term_postings = {term: dictionary.read_posting(term, post_file) for term in query_weight}
         score = compute_score(query_weight, term_postings, doc_info)
         result = sorted(score, key=score.get, reverse=True)
@@ -91,27 +97,25 @@ def free_text_query(query, dictionary, post_file, doc_info):
 
     return doc_list
 
-def boolean_query(query, dictionary, post_file, doc_info, expansion):
-    queries = map(lambda s: s.strip(), query.split('AND'))
+
+def boolean_query(query, dictionary, post_file, doc_info):
+    queries = query.split('AND')
     results = []
 
     for q in queries:
-        if q[0] == '"' and q[-1] == '"':
-            q = q.replace('"', "")
-        if expansion and model:
-            q = expand_query(q)
+        q = q.replace('"', "").strip()
         result = phrasal_query(q, dictionary, post_file, doc_info)
         results.append(result)
 
     list1 = results.pop(0)
 
-    while len(results) > 0:
+    while results:
         list2 = results.pop(0)
         list1 = boolean_AND(list1, list2)
 
     # rank based on court
-    scores = map(lambda x: assign_court_score(doc_info[x].court), list1)
-    doc_list = [doc_info[doc_id].document_id for score, doc_id in sorted(zip(scores, list1), reverse=True)]
+    ranked_results = sorted(list1, key=lambda x: doc_info[x].court, reverse=True)
+    doc_list = map(lambda x: doc_info[x].document_id, ranked_results)
 
     return doc_list
 
@@ -132,7 +136,7 @@ def boolean_AND(list1, list2):
     return result
 
 
-# return a dictioary where key is doc_id,
+# return a dictionary where key is doc_id,
 # and value is cos similarity score for that doc
 def compute_score(query_weight, term_postings, doc_info):
     score = Counter()
@@ -164,10 +168,10 @@ def compute_score(query_weight, term_postings, doc_info):
 
 # return a dictionary where the key is a query term,
 # and value is tf-idf weight for that term
-def compute_query_weight(query, dictionary, num_doc):
+def compute_query_weight(query_terms, dictionary, num_doc):
     term_weight = {}
-    for term in query.split():
-        term = process_term(term)
+
+    for term in query_terms:
         if term in term_weight:
             term_weight[term] += 1
         elif term in dictionary.terms and term not in stop_words:
@@ -190,7 +194,7 @@ def phrasal_query(query, dictionary, post_file, doc_info):
 
     posting1 = dictionary.read_posting(terms.pop(0), post_file)
 
-    while len(terms) > 0:
+    while terms:
         posting2 = dictionary.read_posting(terms.pop(0), post_file)
         posting_temp = []
         i1 = i2 = 0
@@ -198,9 +202,8 @@ def phrasal_query(query, dictionary, post_file, doc_info):
         while i1 < len(posting1) and i2 < len(posting2):
             # if doc_id match
             if posting1[i1].id == posting2[i2].id:
-
-                # construct intermediate posting
-                item = Posting(posting1[i1].id, [], 0)
+                # construct intermediate positions
+                positions = []
 
                 # retrieve position
                 pp1 = posting1[i1].positions
@@ -212,17 +215,16 @@ def phrasal_query(query, dictionary, post_file, doc_info):
                     while j2 < len(pp2):
                         # record the position of second word of the phrase
                         if pp2[j2] - pp1[j1] == 1:
-                            item.positions.append(pp2[j2])
+                            positions.append(pp2[j2])
                         elif pp2[j2] - pp1[j1] > 1:
                             break
 
                         j2 += 1
-
                     j1 += 1
 
                 # phrase found
-                if len(item.positions) > 0:
-                    posting_temp.append(item)
+                if positions:
+                    posting_temp.append(Posting(posting1[i1].id, positions, 0))
 
                 i1 += 1
                 i2 += 1
@@ -238,9 +240,9 @@ def phrasal_query(query, dictionary, post_file, doc_info):
 
 
 def process_term(term):
-    stemmer = PorterStemmer()
     word = stemmer.stem(term.lower().translate(None, string.punctuation))
     return word
+
 
 def assign_court_score(court):
     if court in court_list_1:
@@ -258,14 +260,15 @@ def analyse(doc_list, scores, doc_info):
         court = doc_info[id].court
         print doc_id, score, court
 
+
 def usage():
     print "usage: " + sys.argv[0] + " -d dictionary-file -p postings-file -q file-of-queries -o output-file-of-results"
 
 
-dictionary_file = postings_file = file_of_queries = output_file_of_results = None
+dictionary_file = postings_file = file_of_queries = file_of_output = None
 
 try:
-    opts, args = getopt.getopt(sys.argv[1:], 'd:p:q:o:')
+    opts, args = getopt.getopt(sys.argv[1:], 'd:p:q:o:e:')
 except getopt.GetoptError, err:
     usage()
     sys.exit(2)
@@ -279,12 +282,21 @@ for o, a in opts:
         file_of_queries = a
     elif o == '-o':
         file_of_output = a
+    elif o == '-e':
+        try:
+            from gensim.models.word2vec import Word2Vec
+
+            model = Word2Vec.load(a)
+        except Exception as e:
+            print "Cannot load model word2vec model"
+            print e
+
     else:
         assert False, "unhandled option"
 
-if dictionary_file == None or postings_file == None or file_of_queries == None or file_of_output == None:
+if dictionary_file is None or postings_file is None or file_of_queries is None or file_of_output is None:
     usage()
     sys.exit(2)
 
 document_file = 'documents.pkl'
-search(dictionary_file, postings_file, file_of_queries, file_of_output, document_file)
+search(dictionary_file, postings_file, file_of_queries, file_of_output, document_file, model is not None)
