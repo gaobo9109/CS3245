@@ -6,6 +6,7 @@ import getopt
 import time
 from nltk.stem import *
 from nltk.corpus import stopwords
+from gensim.models import word2vec
 import string
 import math
 from collections import Counter, namedtuple, defaultdict
@@ -17,8 +18,9 @@ except:
     import pickle
 
 stop_words = set(stopwords.words('english'))
+model = word2vec.Word2Vec.load('model/vectors.model')
 
-court_list_1 = ['SG Court of Appeal', 'SG Privy Council', 'UK House of Lords', 
+court_list_1 = ['SG Court of Appeal', 'SG Privy Council', 'UK House of Lords',
                 'UK Supreme Court', 'High Court of Australia', 'CA Supreme Court']
 
 court_list_2 = ['SG High Court', 'Singapore International Commercial Court', 'HK High Court',
@@ -26,11 +28,10 @@ court_list_2 = ['SG High Court', 'Singapore International Commercial Court', 'HK
                 'UK High Court', 'Federal Court of Australia', 'NSW Court of Appeal',
                 'NSW Court of Criminal Appeal', 'NSW Supreme Court']
 
-
-def search(dictionary_file, postings_file, query_file, output_file, document_file):
+def search(dictionary_file, postings_file, query_file, output_file, document_file, expansion=False):
 
     out_file = open(output_file, 'w')
-    post_file = open(postings_file, 'r')
+    post_file = open(postings_file, 'rb')
     dictionary = Dictionary.read(dictionary_file)
     doc_info = pickle.load(open(document_file, 'rb'))
 
@@ -43,7 +44,7 @@ def search(dictionary_file, postings_file, query_file, output_file, document_fil
             query = query.rstrip()
             if not query:
                 continue
-            result = process_query(query, dictionary, post_file, doc_info)
+            result = process_query(query, dictionary, post_file, doc_info, expansion)
             results.append(' '.join(map(str, result)))
 
         output.write("\n".join(results))
@@ -54,12 +55,18 @@ def search(dictionary_file, postings_file, query_file, output_file, document_fil
     out_file.close()
     post_file.close()
 
-def process_query(query, dictionary, post_file, doc_info):
-    # check if the query is free text or boolean 
+def expand_query(query):
+    expanded = [model.most_similar(term)[0][0].encode('ascii', 'ignore') for term in query.split()]
+    return ' '.join(expanded)
+
+def process_query(query, dictionary, post_file, doc_info, expansion):
+    # check if the query is free text or boolean
     if query.find('"') == -1 and query.find('AND') == -1:
+        if expansion:
+            query = expand_query(query)
         doc_list = free_text_query(query, dictionary, post_file, doc_info)
     else:
-        doc_list = boolean_query(query, dictionary, post_file, doc_info)
+        doc_list = boolean_query(query, dictionary, post_file, doc_info, expansion)
     return doc_list
 
 
@@ -76,13 +83,15 @@ def free_text_query(query, dictionary, post_file, doc_info):
 
     return doc_list
 
-def boolean_query(query, dictionary, post_file, doc_info):
+def boolean_query(query, dictionary, post_file, doc_info, expansion):
     queries = map(lambda s: s.strip(), query.split('AND'))
     results = []
 
     for q in queries:
         if q[0] == '"' and q[-1] == '"':
             q = q.replace('"', "")
+        if expansion:
+            q = expand_query(q)
         result = phrasal_query(q, dictionary, post_file, doc_info)
         results.append(result)
 
@@ -145,7 +154,7 @@ def compute_score(query_weight, term_postings, doc_info):
     return score
 
 
-# return a dictionary where the key is a query term, 
+# return a dictionary where the key is a query term,
 # and value is tf-idf weight for that term
 def compute_query_weight(query, dictionary, num_doc):
     term_weight = {}
@@ -179,7 +188,7 @@ def phrasal_query(query, dictionary, post_file, doc_info):
         i1 = i2 = 0
 
         while i1 < len(posting1) and i2 < len(posting2):
-            # if doc_id match 
+            # if doc_id match
             if posting1[i1].id == posting2[i2].id:
 
                 # construct intermediate posting
@@ -270,4 +279,4 @@ if dictionary_file == None or postings_file == None or file_of_queries == None o
     sys.exit(2)
 
 document_file = 'documents.pkl'
-search(dictionary_file, postings_file, file_of_queries, file_of_output, document_file)
+search(dictionary_file, postings_file, file_of_queries, file_of_output, document_file, expansion=True)
