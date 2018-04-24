@@ -32,7 +32,7 @@ sanitizer = Sanitizer()
 
 
 def usage():
-    print("usage: " + sys.argv[0] + " -i dataset-file -d dictionary-file -p postings-file")
+    print("usage: " + sys.argv[0] + " -i dataset-file -d dictionary-file -p postings-file [-m]")
 
 
 def calculate_deltas(numbers):
@@ -212,10 +212,10 @@ class Dictionary:
 
 
 if __name__ == '__main__':
-    input_directory = output_file_dictionary = output_file_postings = None
+    input_directory = output_file_dictionary = output_file_postings = pool = None
 
     try:
-        opts, args = getopt.getopt(sys.argv[1:], 'i:d:p:')
+        opts, args = getopt.getopt(sys.argv[1:], 'i:d:p:m')
     except getopt.GetoptError, err:
         usage()
         sys.exit(2)
@@ -227,6 +227,9 @@ if __name__ == '__main__':
             output_file_dictionary = a
         elif o == '-p':  # postings file
             output_file_postings = a
+        elif o == '-m': # Enable multiprocessing
+            pool = Pool()
+            print("Multiprocessing enabled")
         else:
             assert False, "unhandled option"
 
@@ -236,7 +239,6 @@ if __name__ == '__main__':
 
     output_file_documents = "documents.pkl"
 
-    pool = Pool()
     document_freq, postings, documents = generate_dict_and_postings(input_directory, pool)
     term_offsets = write_postings(output_file_postings, postings)
     Dictionary.write_from_freq_offsets(output_file_dictionary, document_freq, term_offsets)
