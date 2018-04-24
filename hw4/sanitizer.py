@@ -12,8 +12,11 @@ object and then you can do sanitizing. You could change the stop words in
 """
 
 DEFAULT_INVALID_CHARS = re.compile(r'[^a-z\s\-]+', re.I)
-DEFAULT_JUDGEMENT_REGEX = re.compile(r'judge?ment:?\n', re.I)
+DEFAULT_JUDGEMENT_REGEX = re.compile(r'^\s*judge?ment\s*:?\s*\n', re.I)
 DEFAULT_JUDGEMENT_KEY = 'judgment'
+PAGE_NUMBER_REGEX = re.compile(r'\[Page \d+\]', re.I)
+DISCLAIMER_PREFIX = 'DISCLAIMER - Every effort has been made to comply'
+CDATA_SUFFIX = '//]]>'
 LINE_BREAK = re.compile(r'\n')
 WHITE_SPACE = re.compile(r'\s+')
 
@@ -22,6 +25,14 @@ PATH_NOT_VALID_MESSAGE = 'Stop words path is not valid.'
 SCRIPT_PATH = os.path.dirname(os.path.abspath(__file__))
 
 class Sanitizer:
+    def sanitize(self, text):
+        # Remove JS junk from top of text
+        if CDATA_SUFFIX in text:
+            cdata, text = text.split(CDATA_SUFFIX)
+
+        text = self.remove_disclaimer(text)
+        text = self.remove_page_numbers(text)
+        return self.extract_judgement(text)
 
     def tokenize(self, text, remove_stop_words=True):
         """Tokenizes text by removing invalid characters, putting to lower case and stemming
@@ -70,6 +81,15 @@ class Sanitizer:
         else:
             result_content = temp[1]
         return result_content
+
+    def remove_page_numbers(self, content):
+        return re.sub(PAGE_NUMBER_REGEX, ' ', content)
+
+    def remove_disclaimer(self, content):
+        chunks = content.split(DISCLAIMER_PREFIX)
+        if len(chunks) == 2:
+            return chunks[0]
+        return content
 
     def __read_stop_words(self, path):
         """Reads the stop words from a give path.

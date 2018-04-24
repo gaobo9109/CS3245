@@ -59,43 +59,65 @@ def expand_query(query):
     expanded = [model.most_similar(term)[0][0] for term in query]
     return ' '.join(expanded)
 
-def process_query(query, dictionary, post_file, doc_info, expansion):
+def process_query(query, dictionary, post_file, doc_info):
+    # check if the query is free text or boolean
+    if query.find('"') == -1 and query.find('AND') == -1:
+        doc_list = free_text_query(query, dictionary, post_file, doc_info)
+    else:
+        doc_list = boolean_query(query, dictionary, post_file, doc_info)
+    return doc_list
+
+
+def free_text_query(query, dictionary, post_file, doc_info):
+    query_weight = compute_query_weight(query, dictionary, len(doc_info))
+
+    if len(query_weight) > 0:
+        term_postings = {term: dictionary.read_posting(term, post_file) for term in query_weight}
+        score = compute_score(query_weight, term_postings, doc_info)
+        result = sorted(score, key=score.get, reverse=True)
+        doc_list = [doc_info[doc_id].document_id for doc_id in result]
+    else:
+        doc_list = []
+
+    return doc_list
+
+def boolean_query(query, dictionary, post_file, doc_info):
     queries = map(lambda s: s.strip(), query.split('AND'))
-    phrase_list = []
-    tf_idf_list = []
-    print(queries)
+    results = []
 
     for q in queries:
         if q[0] == '"' and q[-1] == '"':
             q = q.replace('"', "")
-            if expansion:
-                q = expand_query(q)
-            result = phrasal_query(q, dictionary, post_file, doc_info)
-            phrase_list.extend(result)
-        else:
-            if expansion:
-                query = expand_query(query)
-            query_weight = compute_query_weight(query, dictionary, len(doc_info))
+        result = phrasal_query(q, dictionary, post_file, doc_info)
+        results.append(result)
 
-            if len(query_weight) > 0:
-                term_postings = {term: dictionary.read_posting(term, post_file) for term in query_weight}
-                score = compute_score(query_weight, term_postings, doc_info)
-                result = sorted(score, key=score.get, reverse=True)
+    list1 = results.pop(0)
 
-                tf_idf_list.extend(result)
+    while len(results) > 0:
+        list2 = results.pop(0)
+        list1 = boolean_AND(list1, list2)
 
-    if len(phrase_list) > 0 and len(tf_idf_list) == 0:
-        doc_list = [doc_info[doc_id].document_id for doc_id in phrase_list]
-    elif len(phrase_list) == 0 and len(tf_idf_list) > 0:
-        doc_list = [doc_info[doc_id].document_id for doc_id in tf_idf_list]
-    else:
-        doc_list = []
-        for doc_id in tf_idf_list:
-            if doc_id in phrase_list:
-                doc_list.append(doc_info[doc_id].document_id)
-
+    # rank based on court
+    scores = map(lambda x: assign_court_score(doc_info[x].court), list1)
+    doc_list = [doc_info[doc_id].document_id for score, doc_id in sorted(zip(scores, list1), reverse=True)]
 
     return doc_list
+
+
+def boolean_AND(list1, list2):
+    i1 = i2 = 0
+    result = []
+
+    while i1 < len(list1) and i2 < len(list2):
+        if list1[i1] == list2[i2]:
+            result.append(list1[i1])
+            i1 += 1
+            i2 += 1
+        elif list1[i1] < list2[i2]:
+            i1 += 1
+        else:
+            i2 += 1
+    return result
 
 
 # return a dictioary where key is doc_id,
@@ -111,30 +133,19 @@ def compute_score(query_weight, term_postings, doc_info):
 
             score[doc_id] += query_weight[term] * tf / doc_info[doc_id].length
 
-    # max_score = max(score.values())
-    # min_score = min(score.values())
-    # diff_score = max_score - min_score
-    # weightage = 0.4
+    max_score = max(score.values())
+    min_score = min(score.values())
+    diff_score = max_score - min_score
+    weightage = 0.5
 
-    # for doc_id in score:
-    #     court = doc_info[doc_id].court
-    #     if court in court_list_1:
-    #         court_score = 1
-    #     elif court in court_list_2:
-    #         court_score = 0.5
-    #     else:
-    #         court_score = 0
+    for doc_id in score:
+        court = doc_info[doc_id].court
+        court_score = assign_court_score(court)
 
-    #     # feature normalization
-    #     cos_score = score[doc_id]
-    #     cos_score = (cos_score - min_score) / diff_score
-    #     score[doc_id] = weightage * cos_score + (1 - weightage) * court_score
-
-    # result = sorted(score, key=score.get, reverse=True)
-    # scores = [score[doc_id] for doc_id in result]
-    # id_list = result[:10]
-    # analyse(id_list, scores, doc_info)
-
+        # feature normalization
+        cos_score = score[doc_id]
+        cos_score = (cos_score - min_score) / diff_score
+        score[doc_id] = weightage * cos_score + (1 - weightage) * court_score
 
     return score
 
@@ -218,6 +229,16 @@ def process_term(term):
     stemmer = PorterStemmer()
     word = stemmer.stem(term.lower().translate(None, string.punctuation))
     return word
+
+def assign_court_score(court):
+    if court in court_list_1:
+        court_score = 1
+    elif court in court_list_2:
+        court_score = 0.5
+    else:
+        court_score = 0
+    return court_score
+
 
 def analyse(doc_list, scores, doc_info):
     for id, score in zip(doc_list, scores):
