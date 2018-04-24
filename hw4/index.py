@@ -2,6 +2,7 @@
 from __future__ import division, print_function
 import re
 import nltk
+import math
 import sys
 import getopt
 import csv
@@ -10,15 +11,14 @@ from collections import Counter, namedtuple, defaultdict
 from itertools import imap
 from multiprocessing import Pool
 from operator import attrgetter
-
+from config import *
+from sanitizer import Sanitizer
 
 try:
     import cPickle as pickle
 except ImportError:
     import pickle
-import math
 
-from sanitizer import Sanitizer
 
 Document = namedtuple('Document', ('document_id', 'title', 'length', 'court'))
 Entry = namedtuple('Entry', ('offset', 'frequency'))
@@ -121,7 +121,7 @@ def encode_posting(args):
     encoded_entry = b''
 
     for posting, id in zip(postings, delta_id):
-        decimal_tf = int(posting.weighted_tf * 10 ** 6) if posting.weighted_tf != 1.0 else 1
+        decimal_tf = int(posting.weighted_tf * TF_MULTIPLIER) if posting.weighted_tf != 1.0 else 1
         encoded_entry += vbcode.encode([id, decimal_tf, len(posting.positions)])
         encoded_entry += vbcode.encode(posting.positions)
 
@@ -181,7 +181,7 @@ class Dictionary:
                 break
 
             delta_id, decimal_tf, positions_len = packed_posting
-            tf = decimal_tf / 10**6 if decimal_tf != 1 else 1.0
+            tf = decimal_tf / TF_MULTIPLIER if decimal_tf != 1 else 1.0
             document_id += delta_id
 
             position_deltas = vbcode.decode_stream(posting_file, positions_len)
@@ -228,7 +228,7 @@ if __name__ == '__main__':
             output_file_dictionary = a
         elif o == '-p':  # postings file
             output_file_postings = a
-        elif o == '-m': # Enable multiprocessing
+        elif o == '-m':  # Enable multiprocessing
             pool = Pool()
             print("Multiprocessing enabled")
         else:

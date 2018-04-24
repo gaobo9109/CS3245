@@ -6,17 +6,16 @@ import time
 import string
 import math
 from nltk.stem import PorterStemmer
-from nltk.corpus import stopwords
 from collections import Counter
+
 from index import Document, Entry, Posting, Dictionary
+from config import *
 
 try:
     import cPickle as pickle
 except ImportError:
     import pickle
 
-model = None
-stop_words = set(stopwords.words('english'))
 stemmer = PorterStemmer()
 
 court_list_1 = ['SG Court of Appeal', 'SG Privy Council', 'UK House of Lords',
@@ -28,7 +27,7 @@ court_list_2 = ['SG High Court', 'Singapore International Commercial Court', 'HK
                 'NSW Court of Criminal Appeal', 'NSW Supreme Court']
 
 
-def search(dictionary_file, postings_file, query_file, output_file, document_file, expansion=False):
+def search(dictionary_file, postings_file, query_file, output_file, document_file, model=None):
     dictionary = Dictionary.read(dictionary_file)
 
     with open(document_file, 'rb') as f:
@@ -42,7 +41,7 @@ def search(dictionary_file, postings_file, query_file, output_file, document_fil
             query = query.strip()
             if not query:
                 continue
-            result = process_query(query, dictionary, post_file, doc_info, expansion)
+            result = process_query(query, dictionary, post_file, doc_info, model)
             results.append(' '.join(map(str, result)))
 
         output.write("\n".join(results))
@@ -51,7 +50,7 @@ def search(dictionary_file, postings_file, query_file, output_file, document_fil
     print(end - start)
 
 
-def expand_query(query_terms):
+def expand_query(query_terms, model):
     expanded_terms = []
 
     for term in query_terms:
@@ -61,7 +60,7 @@ def expand_query(query_terms):
                 continue
 
             synonym, score = similar.pop(0)
-            while score > 0.8:
+            while similar and score >= SYNONYM_CUTOFF:
                 expanded_terms.append(synonym)
                 synonym, score = similar.pop(0)
 
@@ -72,12 +71,12 @@ def expand_query(query_terms):
     return expanded_terms
 
 
-def process_query(query, dictionary, post_file, doc_info, expansion):
+def process_query(query, dictionary, post_file, doc_info, model):
     # check if the query is free text or boolean
     if '"' not in query and 'AND' not in query:
         query_terms = map(process_term, query.split())
-        if expansion and model:
-            query_terms.extend(expand_query(query_terms))
+        if model:
+            query_terms.extend(expand_query(query_terms, model))
         doc_list = free_text_query(query_terms, dictionary, post_file, doc_info)
     else:
         doc_list = boolean_query(query, dictionary, post_file, doc_info)
@@ -114,8 +113,8 @@ def boolean_query(query, dictionary, post_file, doc_info):
         list1 = boolean_AND(list1, list2)
 
     # rank based on court
-    ranked_results = sorted(list1, key=lambda x: doc_info[x].court, reverse=True)
-    doc_list = map(lambda x: doc_info[x].document_id, ranked_results)
+    ranked_results = sorted(list1, key=lambda id: doc_info[id].court, reverse=True)
+    doc_list = map(lambda id: doc_info[id].document_id, ranked_results)
 
     return doc_list
 
@@ -174,7 +173,7 @@ def compute_query_weight(query_terms, dictionary, num_doc):
     for term in query_terms:
         if term in term_weight:
             term_weight[term] += 1
-        elif term in dictionary.terms and term not in stop_words:
+        elif term in dictionary.terms and term not in STOPWORDS:
             term_weight[term] = 1
 
     for term, freq in term_weight.items():
@@ -262,10 +261,10 @@ def analyse(doc_list, scores, doc_info):
 
 
 def usage():
-    print "usage: " + sys.argv[0] + " -d dictionary-file -p postings-file -q file-of-queries -o output-file-of-results"
+    print "usage: " + sys.argv[0] + " -d dictionary-file -p postings-file -q file-of-queries -o output-file [-e word2vec model]"
 
 
-dictionary_file = postings_file = file_of_queries = file_of_output = None
+dictionary_file = postings_file = file_of_queries = file_of_output = model = None
 
 try:
     opts, args = getopt.getopt(sys.argv[1:], 'd:p:q:o:e:')
@@ -288,7 +287,7 @@ for o, a in opts:
 
             model = Word2Vec.load(a)
         except Exception as e:
-            print "Cannot load model word2vec model"
+            print "Cannot load word2vec model"
             print e
 
     else:
@@ -298,5 +297,4 @@ if dictionary_file is None or postings_file is None or file_of_queries is None o
     usage()
     sys.exit(2)
 
-document_file = 'documents.pkl'
-search(dictionary_file, postings_file, file_of_queries, file_of_output, document_file, model is not None)
+search(dictionary_file, postings_file, file_of_queries, file_of_output, DOCUMENTS_FILENAME, model)
