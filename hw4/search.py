@@ -31,7 +31,7 @@ court_list_2 = ['SG High Court', 'Singapore International Commercial Court', 'HK
 def search(dictionary_file, postings_file, query_file, output_file, document_file, expansion=False):
 
     out_file = open(output_file, 'w')
-    post_file = open(postings_file, 'r')
+    post_file = open(postings_file, 'rb')
     dictionary = Dictionary.read(dictionary_file)
     doc_info = pickle.load(open(document_file, 'rb'))
 
