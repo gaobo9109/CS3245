@@ -18,7 +18,7 @@ except:
     import pickle
 
 stop_words = set(stopwords.words('english'))
-model = word2vec.Word2Vec.load('model/vector.model')
+model = word2vec.Word2Vec.load('model/vectors.model')
 
 court_list_1 = ['SG Court of Appeal', 'SG Privy Council', 'UK House of Lords',
                 'UK Supreme Court', 'High Court of Australia', 'CA Supreme Court']
@@ -56,15 +56,17 @@ def search(dictionary_file, postings_file, query_file, output_file, document_fil
     post_file.close()
 
 def expand_query(query):
-    expanded = [model.most_similar(term)[0][0] for term in query]
+    expanded = [model.most_similar(term)[0][0].encode('ascii', 'ignore') for term in query.split()]
     return ' '.join(expanded)
 
-def process_query(query, dictionary, post_file, doc_info):
+def process_query(query, dictionary, post_file, doc_info, expansion):
     # check if the query is free text or boolean
     if query.find('"') == -1 and query.find('AND') == -1:
+        if expansion:
+            query = expand_query(query)
         doc_list = free_text_query(query, dictionary, post_file, doc_info)
     else:
-        doc_list = boolean_query(query, dictionary, post_file, doc_info)
+        doc_list = boolean_query(query, dictionary, post_file, doc_info, expansion)
     return doc_list
 
 
@@ -81,13 +83,15 @@ def free_text_query(query, dictionary, post_file, doc_info):
 
     return doc_list
 
-def boolean_query(query, dictionary, post_file, doc_info):
+def boolean_query(query, dictionary, post_file, doc_info, expansion):
     queries = map(lambda s: s.strip(), query.split('AND'))
     results = []
 
     for q in queries:
         if q[0] == '"' and q[-1] == '"':
             q = q.replace('"', "")
+        if expansion:
+            q = expand_query(q)
         result = phrasal_query(q, dictionary, post_file, doc_info)
         results.append(result)
 
@@ -275,4 +279,4 @@ if dictionary_file == None or postings_file == None or file_of_queries == None o
     sys.exit(2)
 
 document_file = 'documents.pkl'
-search(dictionary_file, postings_file, file_of_queries, file_of_output, document_file)
+search(dictionary_file, postings_file, file_of_queries, file_of_output, document_file, expansion=True)
