@@ -10,6 +10,11 @@ We're using Python Version 2.7 for this assignment.
 
 == General Notes about this assignment ==
 
+Additional parameter flags added
+
+- index.py: -m to enable multithreading. This increases memory usage but makes indexing significantly faster
+- search.py: -e path/to/vector.model to enable query expansion using the given word2vec model
+
 = Indexing =
 
 We use three index files to keep track of all data
@@ -28,7 +33,7 @@ generated and added to the document index.
 
 The documents provided are very noisy and contains a large amount of extraneous information as well as junk left by the
 scraping/OCR process such as page numbers, bits of JavaScript embedded in the page and legal disclaimers. The sanitizer
-is designed to strip all of these out from the data to improve index speed and search quality. A number of documents
+is designed to strip all of these out from the data to improve index speed and quality. A number of documents
 are also entirely empty because their content is restricted - these are also excluded from the index.
 
 Zones and fields other than document's court are not used because the documents come from many different sources and
@@ -36,11 +41,11 @@ do not follow standard formats that make them easy to identify. If the original 
 possible to extract this information, but the plain text has too few reliable textual markers to allow zones to be
 extracted.
 
-For a given document, we remove any metadata that occurs at the start of a document, disclaimers and junk present from
-scraping such as embedded JavaScript, and consider only the "Judgement" portion of the report. Then we tokenise words
-that are not stop words (according to nltk.corpus stopwords), converting them to lowercase, removing all non letter,
-whitespace and hyphen characters, then performing porter stemming. We use an American to UK English translation table
-to standardize the spelling of English words since the corpus contains documents from both side of the Atlantic.
+For a given document, we remove any metadata that occurs at the start of a document, disclaimers and junk and consider
+only the "Judgement" portion of the report. Then we tokenise words that are not stop words (according to nltk.corpus
+stopwords); converting them to lowercase, removing all non letter, whitespace and hyphen characters; then performing
+porter stemming. We also use an American to UK English translation table to standardize the spelling of English words
+since the corpus contains documents from both sides of the Atlantic.
 
 = Writing & Encoding =
 

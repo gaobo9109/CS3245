@@ -1,7 +1,6 @@
 from __future__ import division
 import nltk
 import re
-import numpy
 import pickle
 from config import *
 
@@ -98,7 +97,8 @@ class Sanitizer:
         tokens = map(self.ps.stem, filter(None, tokens))
 
         # US to UK translation
-        tokens = map(lambda t: self.us_to_uk.get(t, t), tokens)
+        if self.us_to_uk:
+            tokens = map(lambda t: self.us_to_uk.get(t, t), tokens)
 
         return tokens
 
@@ -164,7 +164,6 @@ class Sanitizer:
 
         return content
 
-
     def is_restricted_document(self, content):
         return 'The text of this decision has been restricted' in content \
                or re.search(RESTRICTED_TEXT_REGEX, content)
@@ -181,4 +180,3 @@ class Sanitizer:
             print e
 
             self.us_to_uk = {}
-
