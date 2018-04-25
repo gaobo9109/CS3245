@@ -1,6 +1,6 @@
-This is the README file for A0135817B, AXXXXXXXX, A0121585H and A0156136H's submission
+This is the README file for A0135817B, A0147995H, A0121585H and A0156136H's submission
 Email:	e0011848@u.nus.edu
-		XXXXXXXX@u.nus.edu
+		e0012667@u.nus.edu
 		a0121585@u.nus.edu
 		e0032273@u.nus.edu
 
@@ -86,6 +86,8 @@ score is assigned to a document based on the court hierachy information provided
 combined in the following way. We rescale the court score and relevance score to a value between 0 and 1, then we add them together
 as a weighted sum. Weightage given to each term is experimentally determined. 
 
+= Query Expansion =
+Please see query_expansion.txt
 
 == Files included with this submission ==
 
@@ -110,7 +112,7 @@ dictionary/scraper.py: The script used to scrape the above data
 == Statement of individual work ==
 
 
-We, A0135817B, AXXXXXXXX, A0121585H, and A0156136H certify that we have followed the CS 3245
+We, A0135817B, A0147995H, A0121585H, and A0156136H certify that we have followed the CS 3245
 Information Retrieval class guidelines for homework assignments. In particular, 
 we expressly vow that we have followed the Facebook rule in discussing
 with others in doing the assignment and did not take notes (digital or
