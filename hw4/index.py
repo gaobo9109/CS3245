@@ -159,14 +159,15 @@ def write_postings(output_file_postings, postings, pool=None):
     else:
         results = imap(encode_posting, postings.items())
 
-    encoded_entries = sorted(results, key=itemgetter(0))
+    results = sorted(results, key=itemgetter(1))
 
     log("Writing entries to disk")
-    with open(output_file_postings, 'wb') as output_file:
-        for term, entry in encoded_entries:
-            offset = output_file.tell()
+    bytes_written = 0
+    with open(output_file_postings, 'wb', 2**10) as output_file:
+        for term, entry in results:
+            term_offsets[term] = bytes_written
             output_file.write(entry)
-            term_offsets[term] = offset
+            bytes_written += len(entry)
 
     return term_offsets
 

@@ -46,7 +46,6 @@ RESTRICTED_TEXT_REGEX = re.compile(r'The text of decision for[^\n]*has been rest
 
 # For removing other junk in the documents
 PAGE_NUMBER_REGEX = re.compile(r'\[Page \d+\]', re.I)
-CDATA_SUFFIX = '//]]>'
 CSS_SUFFIX = '!important;}'
 
 LINE_BREAK = re.compile(r'\n+')
@@ -62,11 +61,11 @@ def remove_until(text, pattern):
 
 
 def remove_from(text, pattern):
-    match = re.search(pattern, text)
-    if not match:
+    match = text.rfind(pattern)
+    if match == -1:
         return text
 
-    return text[:match.start()]
+    return text[:match]
 
 
 class Sanitizer:
@@ -74,15 +73,15 @@ class Sanitizer:
         # Remove page number embedded inside text
         text = self.remove_page_numbers(text)
 
+        # Remove JS junk from the text
+        text = self.remove_cdata(text)
+
         # Remove disclaimer text and other boilerplate at the end of the text
         for prefix in DOCUMENT_END_PREFIX:
             text = remove_from(text, prefix)
 
         # Try to extract the judgement from the text
         text = self.extract_judgement(text)
-
-        # Remove JS junk from top of text
-        text = remove_until(text, CDATA_SUFFIX)
 
         return text
 
@@ -120,11 +119,14 @@ class Sanitizer:
         if len(lines) < 2:
             return content
 
-        total_length = sum(line_lengths)
-        current_length = line_lengths[0] + line_lengths[1]
+        if line_lengths[0] > 500:
+            return content
 
-        i = 2
-        for i in range(2, len(lines)):
+        total_length = sum(line_lengths)
+        current_length = line_lengths[0]
+
+        i = 1
+        for i in range(1, len(lines)):
             line_len = line_lengths[i]
             if line_len < (current_length / i) * 2 and current_length < total_length * SANITIZE_CUTOFF:
                 current_length += line_len
@@ -149,6 +151,19 @@ class Sanitizer:
 
     def remove_page_numbers(self, content):
         return re.sub(PAGE_NUMBER_REGEX, ' ', content)
+
+    def remove_cdata(self, content):
+        start = content.find('//<![CDATA')
+        while start != -1:
+            end = content.find('//]]>', start)
+            if end == -1:
+                break
+
+            content = content[:start] + content[end + len('//]]>'):]
+            start = content.find('//<![CDATA')
+
+        return content
+
 
     def is_restricted_document(self, content):
         return 'The text of this decision has been restricted' in content \
