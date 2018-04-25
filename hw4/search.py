@@ -174,6 +174,9 @@ def rank_by_score(score, doc_info):
 
 
 def combine_court_score(score, doc_info, weightage):
+    if not score:
+        return score
+    
     max_score = max(score.values())
     min_score = min(score.values())
     diff_score = max_score - min_score
