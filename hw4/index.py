@@ -85,7 +85,7 @@ def generate_dict_and_postings(data_file, pool=None):
         log("Collecting results from generate_posting")
 
         for result in results:
-            if not result:
+            if not result:  # None is returned from generate_posting if the document is empty
                 continue
 
             id, document_postings, document = result
@@ -101,7 +101,7 @@ def generate_dict_and_postings(data_file, pool=None):
 def generate_posting(args):
     id, row = args
 
-    # Some documents are completely empty. We'll skip them
+    # Some documents are completely empty. We'll skip them.
     if sanitizer.is_restricted_document(row.content):
         return None
 
@@ -111,15 +111,15 @@ def generate_posting(args):
     # Counter stores the count of every word
     words = sanitizer.tokenize(sanitizer.sanitize(row.content))
     counter = Counter()
-    for index, word in enumerate(filter(None, words)):
+    for position, word in enumerate(filter(None, words)):
         counter[word] += 1
-        positions[word].append(index)
+        positions[word].append(position)
 
     # Keeps track of the current sum of tf^2
     postings = {}
     length_sum = 0
 
-    for word in counter.keys():
+    for word in counter:
         weighted_tf = 1 + math.log10(counter[word])
         position_deltas = calculate_deltas(positions[word])
         postings[word] = Posting(id, position_deltas, weighted_tf)
@@ -127,7 +127,6 @@ def generate_posting(args):
         # Add weighted_tf^2 to lengthSum
         length_sum += weighted_tf ** 2
 
-    # TODO: Optimize this using objects instead of strings
     document = Document(document_id=document_id,
                         title=row.title,
                         length=math.sqrt(length_sum),
@@ -142,6 +141,7 @@ def encode_posting(args):
     encoded_entry = b''
 
     for posting, id in zip(postings, delta_id):
+        # Format: [id, tf, positions len, *positions]
         decimal_tf = int(posting.weighted_tf * TF_MULTIPLIER) if posting.weighted_tf != 1.0 else 1
         encoded_entry += vbcode.encode([id, decimal_tf, len(posting.positions)])
         encoded_entry += vbcode.encode(posting.positions)
@@ -151,6 +151,7 @@ def encode_posting(args):
 
 def write_postings(output_file_postings, postings):
     log("Encoding entries")
+
     # List of corresponding posting lists and their starting bytes
     term_offsets = {}
     
@@ -159,6 +160,7 @@ def write_postings(output_file_postings, postings):
     else:
         results = imap(encode_posting, postings.items())
 
+    # Sort terms in the postings file to ensure deterministic ordering
     results = sorted(results, key=itemgetter(0))
 
     log("Writing entries to disk")
@@ -188,6 +190,7 @@ class Dictionary:
         return self.entries[term], self.end.get(term, sys.maxsize)
 
     def read_posting(self, term, posting_file):
+        """Returns the postings for a given term from the given posting file"""
         if term not in self.entries:
             return []
 
@@ -201,6 +204,7 @@ class Dictionary:
             if not packed_posting:
                 break
 
+            # Format: [id, tf, positions len, *positions]
             delta_id, decimal_tf, positions_len = packed_posting
             tf = decimal_tf / TF_MULTIPLIER if decimal_tf != 1 else 1.0
             document_id += delta_id
@@ -215,16 +219,19 @@ class Dictionary:
     def write_from_freq_offsets(filename, document_freq, term_offsets):
         with open(filename, 'wb') as f:
             for term in document_freq:
+                # Format: [term len, document freq, offset, term]
                 encoded_entry = vbcode.encode([len(term), document_freq[term], term_offsets[term]])
                 f.write(encoded_entry + bytes(term))
 
     @staticmethod
     def read(filename):
+        """Deserialize a Dictionary from the given file"""
         entries = {}
 
         with open(filename, 'rb') as f:
             decoded = vbcode.decode_stream(f, 3)
             while decoded:
+                # Format: [term len, document freq, offset, term]
                 length, freq, offset = decoded
                 term = f.read(length)
                 entries[term] = Entry(frequency=freq, offset=offset)

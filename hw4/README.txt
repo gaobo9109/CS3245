@@ -1,5 +1,5 @@
-This is the README file for AXXXXXXXX, AXXXXXXXX, A0121585H and A0156136H's submission
-Email:	XXXXXXXX@u.nus.edu
+This is the README file for A0135817B, AXXXXXXXX, A0121585H and A0156136H's submission
+Email:	e0011848@u.nus.edu
 		XXXXXXXX@u.nus.edu
 		a0121585@u.nus.edu
 		e0032273@u.nus.edu
@@ -10,56 +10,107 @@ We're using Python Version 2.7 for this assignment.
 
 == General Notes about this assignment ==
 
+Additional parameter flags added
+
+- index.py: -m to enable multithreading. This increases memory usage but makes indexing significantly faster
+- search.py: -e path/to/vector.model to enable query expansion using the given word2vec model
+
 = Indexing =
 
+We use three index files to keep track of all data
+
+- postings.txt maps each term to their positions and tf in each document
+- dictionary.txt maps each
+- document.pkl maps the internal ID used to the real document ID, title, length, court and other metadata
+
 index.py deploys multithreading to iterate through all the documents, then sanitizes and tokenizes the document into words.
-The posting, a namedtuple of: (weighted tf, positional index and document id), is then generated for each word and added to
-the posting list. The document, a named tuple of: (id, title, length (sum of the squares of weighted tfs), court) is generated 
-and added to the document index.
+Each term has a list of postings, and each posting consist of a namedtuple of (weighted tf, positional indices, id).
+The document, a namedtuple of: (document_id, title, length (sum of the squares of weighted tfs), court) is
+generated and added to the document index.
+
 
 = Sanitization & Tokenization =
 
-For a given document, we remove any meta data that occurs at the start of a document, including page numbers, and consider only
-the "Judgement" portion of the report. Then we tokenise words that are not stop words (according to nltk.corpus stopwords), 
-converting them to lower case, removing all invalid characters, then performing porter stemming. We return the terms back to 
-index.py.
+The documents provided are very noisy and contains a large amount of extraneous information as well as junk left by the
+scraping/OCR process such as page numbers, bits of JavaScript embedded in the page and legal disclaimers. The sanitizer
+is designed to strip all of these out from the data to improve index speed and quality. A number of documents
+are also entirely empty because their content is restricted - these are also excluded from the index.
+
+Zones and fields other than document's court are not used because the documents come from many different sources and
+do not follow standard formats that make them easy to identify. If the original HTML was provided instead, it may be
+possible to extract this information, but the plain text has too few reliable textual markers to allow zones to be
+extracted.
+
+For a given document, we remove any metadata that occurs at the start of a document, disclaimers and junk and consider
+only the "Judgement" portion of the report. Then we tokenise words that are not stop words (according to nltk.corpus
+stopwords); converting them to lowercase, removing all non letter, whitespace and hyphen characters; then performing
+porter stemming. We also use an American to UK English translation table to standardize the spelling of English words
+since the corpus contains documents from both sides of the Atlantic.
 
 = Writing & Encoding =
 
-The finished postings list and dictionary is then written to postings.txt and dictionary.txt respectively. Variable byte 
-encoding is used to compress the postings list.
-The Dictionary is written as ???
-The Documents list is written as a pickled object to documents.pkl
+Posting and Dictionary are binary files encoded using variable byte encoding. Documents is a Pickle file.
+
+Index compression is employed heavily to ensure the index fits the required file size. Variable byte encoding is used to reduce
+the size of all integers. tf is stored as a fixed point decimal, trading precision for size, and we remap all document
+IDs to an internal ID of consecutive integers, which are smaller than the real document IDs. Incrementing integers
+such as IDs and positional index are encoded as deltas, from which their original values are recalculated when the posting
+is read. Each posting is encoded as id, tf, length of the positional index, followed by the positional index. This reduced
+the posting file size by over 50% compared to the plain text format used in the previous homework.
+
+The dictionary file also used variable byte encoding. Each dictionary entry is encoded as term length, document frequency,
+byte offset followed by the term itself. This reduced the dictionary file from 10MB to just 2MB, at the cost of increased
+read time.
 
 = Searching =
 
 There are two cases for searching : Free text queries and boolean queries. A boolean query is identified by the existence of 
-an "AND" in the query and has the possibility of including phrasal queries. 
+an "AND" or quotation mark in the query. Boolean query has the possibility of including phrasal queries. 
 
-For free text queries:
+Free text queries:
 For each query term, the tf-idf is calculated and the tf-idf vector is constructed for the entire query. We then extract the
 posting list associated with each query term. The cos similarity score for each document is computed, and the results are 
 returned in order of relevance
 
-For boolean queries:
-???
+Boolean queries:
+We use positional index to find the existence of both phrase and single word query term in a document. To find a phrase in a 
+document, we first find the documents containing all terms in the phrase. Then for each of these documents, we find places where
+phrasal terms differ by 1 in their positions. The term frequency of the phrase in a document is also recorded during the scan 
+process. The term frequency of single word query term can easily be found from posting list. For each of the document that contain
+all query terms, we add up the term frequency of all query terms in the document and use it as a relevance score. A phrase is 
+regarded as a single query term. For example, for query ""fertility treatment" AND damages", "fertility treatment" and "damages" 
+are treated as two query terms, we add up their respective term frequency and use it as a relevance score
 
-= Query Expansion =
-???
+For both free text queries and boolean queries, we combine the relevance score of a document together with its court score. A court
+score is assigned to a document based on the court hierachy information provided to us. The court score and relevance score is
+combined in the following way. We rescale the court score and relevance score to a value between 0 and 1, then we add them together
+as a weighted sum. Weightage given to each term is experimentally determined. 
+
 
 == Files included with this submission ==
 
+config.py: contains tweakables
 index.py: to index the dataset
 search.py: query the index
 sanitizer.py: sanitises the content
+vbcode.py: contains the variable byte encoding implementation
+
 dictionary.txt: contain the dictionary for the index
 postings.txt: contain the posting list for all words that appear in the corpus
+documents.pkl: contains metadata on all documents in the corpus
+
+models/* : contains the word2vec models used for query expansion
+train.py: the script used to train the word2vec model
+gen_train_data.py: uses the sanitizer and tokenizer to generate training data for the model from the dataset
+
+us-uk.pkl: US-UK English translation table
+dictionary/scraper.py: The script used to scrape the above data
 
 
 == Statement of individual work ==
 
 
-We, AXXXXXXXX, AXXXXXXXX, A0121585H, and A0156136H certify that we have followed the CS 3245 
+We, A0135817B, AXXXXXXXX, A0121585H, and A0156136H certify that we have followed the CS 3245
 Information Retrieval class guidelines for homework assignments. In particular, 
 we expressly vow that we have followed the Facebook rule in discussing
 with others in doing the assignment and did not take notes (digital or
@@ -68,3 +119,5 @@ printed) from the discussions.
 
 == References ==
 
+- Variable byte encoding code partly taken from https://github.com/utahta/pyvbcode/blob/master/vbcode.py
+  which is just an implementation of the algorithm from the textbook, with our own modifications

@@ -1,6 +1,5 @@
 import nltk
 import csv
-import pickle
 from sanitizer import Sanitizer
 from multiprocessing import Pool
 

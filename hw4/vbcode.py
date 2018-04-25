@@ -1,6 +1,7 @@
 # vim:fileencoding=utf8
-from __future__ import division 
+from __future__ import division
 from struct import pack, unpack
+
 
 def encode_number(number):
     """Variable byte code encode number.
@@ -18,6 +19,7 @@ def encode_number(number):
 
     return pack('%dB' % len(bytes_list), *bytes_list)
 
+
 def encode(numbers):
     """Variable byte code encode numbers.
     Usage:
@@ -25,6 +27,7 @@ def encode(numbers):
       vbcode.encode([32, 64, 128])
     """
     return b"".join(map(encode_number, numbers))
+
 
 def decode(bytestream):
     """Variable byte code decode.
@@ -45,13 +48,16 @@ def decode(bytestream):
             n = 0
     return numbers
 
-def decode_stream(file, count):
+
+def decode_stream(file_handle, count):
+    """Reads in a variable number of numbers from a file. May not
+    return the asked for number of numbers if EOF is reached"""
     n = 0
     numbers = []
 
     while len(numbers) < count:
-        read_byte = file.read(1)
-        if not read_byte:
+        read_byte = file_handle.read(1)
+        if not read_byte:  # EOF reached
             break
 
         byte = ord(read_byte)
@@ -64,4 +70,3 @@ def decode_stream(file, count):
             n = 0
 
     return numbers
-
