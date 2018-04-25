@@ -1,41 +1,6 @@
-************
-* Method 1 *
-************
-The method that we tried to use was pseudo relevance feedback.
-The basic idea was that, when user search for a query, we use the original query to
-fetch a list of top-related documents first. Then from those documents, find the
-important keywords to form new query. The definition of "important keyword" is
-that it has relatively high term frequency in a specific document while it has relatively
-low term frequency in the retrieved documents' term collections. To be more specific,
-in our design, the importance weight of a term is defined as
+Query Expansion
 
-argmax(tf * log(1/TF))
-
-where tf is the term frequency in some specific document. TF is the term frequency
-in the collection of the retrieved documents.
-
-*** Design ***
-
-Our first attempt was the following:
-1. Used the initial indexing model and retrieved the related list of documents ids.
-2. Retrieve the list of documents with the ids.
-3. For each term in the documents, for each document, count tf.
-4. For each term in the documents, count TF
-5. Then for each term, use max(tf * log(1/TF)) as score.
-6. Pick the top 3 terms to form a new query
-7. return queried documents using original model
-
-*** Result ***
-
-This method requires a large amount of space to store the file contents (since we
-need them to abstract out key terms). Due to the time and space constrain, we decided
-to use other methods.
-
-************
-* Method 2 *
-************
-
-This method is rather straightforward. The idea is to expand the query using thesaurus.
+The method is rather straightforward. The idea is to expand the query using thesaurus.
 For each term in the query, find the synonym using the thesaurus, append them to the
 original query and then proceed to search.
 
@@ -47,10 +12,38 @@ synonym. After that, append all synonyms to the original query and do normal sea
 
 *** Result ***
 
-It works but the result is not efficient as expected. Generally speaking the query
-time increases due to the synonyms, especially for long queries. The synonyms are
-not well chosen most of the cases since we are dealing with terms separately.
+It works and the result is surprisingly better than we expected. Generally speaking
+the query time increases due to finding synonyms, especially for long queries.
+However, we could see some good results from the experiments. For instance, we have
+tried some searches and the results are the following: (top 5 were
+examined)
+
+Every document is described as a doc id and followed by short descriptions or some
+keywords from the file
+
+drug selling:
+2432961: traffic in a controlled drug
+2153366: Narcotic drug trading
+2433122: holding not proved Food and Drugs
+2434235: Narcotics—Trafficking—Drug sold
+2431790: offence of illegally selling a drug
+
+car crashes:
+2431551: motor car onto a railway right-of-way and left it on the tracks where a train crashed into it
+2851048: not wearing a crash helmet, motor car
+6799180: personal injuries caused by a street car, crash of the tools
+2623506: single‑vehicle accident “driving the vehicle when the crash occurred”
+6801764: single‑vehicle accident
+(interestingly, 2623506 and 6801764 have the same content)
+
+Firstly, the query extension would not affect normal search as seen from example
+one. Then, from doc 2623506 we notice that instead of sticking to the keyword
+"car", a more formal word "vehicle" is utilized for search term, which is good as
+sometimes this may help when the search engine is used by those who are not professionals.
 
 *** Possible Improvement ***
 
-Maybe could find "synonyms" for phrases if possible.
+This approach does not help when the user is not sure about the keywords. In other
+words, it cannot abstract out ideas from free text and extend the query. A possible
+improvement would be utilizing pseudo relevance feedback, which is to find key terms
+from the first retrieved documents and do search again based on them.
