@@ -82,15 +82,14 @@ def process_query(query, dictionary, post_file, doc_info, model):
         doc_list = boolean_query(query, dictionary, post_file, doc_info)
     return doc_list
 
-
+# return a list of doc_id
 def free_text_query(query_terms, dictionary, post_file, doc_info):
     query_weight = compute_query_weight(query_terms, dictionary, len(doc_info))
 
     if query_weight:
         term_postings = {term: dictionary.read_posting(term, post_file) for term in query_weight}
-        score = compute_score(query_weight, term_postings, doc_info)
-        result = sorted(score, key=score.get, reverse=True)
-        doc_list = [doc_info[doc_id].document_id for doc_id in result]
+        score = compute_score_free_text(query_weight, term_postings, doc_info)
+        doc_list = rank_by_score(score, doc_info)
     else:
         doc_list = []
 
@@ -106,15 +105,21 @@ def boolean_query(query, dictionary, post_file, doc_info):
         result = phrasal_query(q, dictionary, post_file, doc_info)
         results.append(result)
 
-    list1 = results.pop(0)
+    id_list1 = map(lambda x: x.id, results[0])
+    index = 1
 
-    while results:
-        list2 = results.pop(0)
-        list1 = boolean_AND(list1, list2)
+    while index < len(results):
+        id_list2 = map(lambda x: x.id, results[index])
+        id_list1 = boolean_AND(id_list1, id_list2)
+        index += 1
 
-    # rank based on court
-    ranked_results = sorted(list1, key=lambda id: doc_info[id].court, reverse=True)
-    doc_list = map(lambda id: doc_info[id].document_id, ranked_results)
+    final_list = id_list1
+
+    # filter the posting list for all query terms based on the final_list
+    filtered_results = [filter(lambda x: x.id in final_list, result) for result in results]
+
+    score = compute_score_boolean(final_list, filtered_results, doc_info)
+    doc_list = rank_by_score(score, doc_info)
 
     return doc_list
 
@@ -137,7 +142,7 @@ def boolean_AND(list1, list2):
 
 # return a dictionary where key is doc_id,
 # and value is cos similarity score for that doc
-def compute_score(query_weight, term_postings, doc_info):
+def compute_score_free_text(query_weight, term_postings, doc_info):
     score = Counter()
 
     for term in query_weight:
@@ -148,21 +153,46 @@ def compute_score(query_weight, term_postings, doc_info):
 
             score[doc_id] += query_weight[term] * tf / doc_info[doc_id].length
 
+    score = combine_court_score(score, doc_info, 0.5)
+
+    return score
+
+def compute_score_boolean(id_list, filtered_results, doc_info):
+    score = Counter()
+    for i in range(len(id_list)):
+        doc_id = id_list[i]
+        for result in filtered_results:
+            score[doc_id] += result[i].weighted_tf / doc_info[doc_id].length
+
+    score = combine_court_score(score, doc_info, 0.5)
+    return score
+
+def rank_by_score(score, doc_info):
+    result = sorted(score, key=score.get, reverse=True)
+    doc_list = [doc_info[doc_id].document_id for doc_id in result]
+    return doc_list
+
+
+def combine_court_score(score, doc_info, weightage):
     max_score = max(score.values())
     min_score = min(score.values())
     diff_score = max_score - min_score
-    weightage = 0.5
 
     for doc_id in score:
         court = doc_info[doc_id].court
-        court_score = assign_court_score(court)
+        if court in court_list_1:
+            court_score = 1
+        elif court in court_list_2:
+            court_score = 0.5
+        else:
+            court_score = 0
 
         # feature normalization
         cos_score = score[doc_id]
         cos_score = (cos_score - min_score) / diff_score
         score[doc_id] = weightage * cos_score + (1 - weightage) * court_score
-
     return score
+
 
 
 # return a dictionary where the key is a query term,
@@ -187,9 +217,9 @@ def compute_query_weight(query_terms, dictionary, num_doc):
 
     return term_weight
 
-
+# return a list of Posting objects
 def phrasal_query(query, dictionary, post_file, doc_info):
-    terms = map(process_term, query.split())
+    terms = filter(lambda x: x not in STOPWORDS, map(process_term, query.split()))
 
     posting1 = dictionary.read_posting(terms.pop(0), post_file)
 
@@ -203,6 +233,7 @@ def phrasal_query(query, dictionary, post_file, doc_info):
             if posting1[i1].id == posting2[i2].id:
                 # construct intermediate positions
                 positions = []
+                count = 0
 
                 # retrieve position
                 pp1 = posting1[i1].positions
@@ -215,6 +246,7 @@ def phrasal_query(query, dictionary, post_file, doc_info):
                         # record the position of second word of the phrase
                         if pp2[j2] - pp1[j1] == 1:
                             positions.append(pp2[j2])
+                            count += 1
                         elif pp2[j2] - pp1[j1] > 1:
                             break
 
@@ -223,7 +255,8 @@ def phrasal_query(query, dictionary, post_file, doc_info):
 
                 # phrase found
                 if positions:
-                    posting_temp.append(Posting(posting1[i1].id, positions, 0))
+                    weighted_tf = 1 + math.log10(count)
+                    posting_temp.append(Posting(posting1[i1].id, positions, weighted_tf))
 
                 i1 += 1
                 i2 += 1
@@ -235,29 +268,12 @@ def phrasal_query(query, dictionary, post_file, doc_info):
 
         posting1 = posting_temp
 
-    return map(lambda x: x.id, posting1)
+    return posting1
 
 
 def process_term(term):
     word = stemmer.stem(term.lower().translate(None, string.punctuation))
     return word
-
-
-def assign_court_score(court):
-    if court in court_list_1:
-        court_score = 1
-    elif court in court_list_2:
-        court_score = 0.5
-    else:
-        court_score = 0
-    return court_score
-
-
-def analyse(doc_list, scores, doc_info):
-    for id, score in zip(doc_list, scores):
-        doc_id = doc_info[id].document_id
-        court = doc_info[id].court
-        print doc_id, score, court
 
 
 def usage():
