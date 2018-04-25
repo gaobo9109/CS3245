@@ -25,16 +25,14 @@ JUDGEMENT_DELIMITERS = [
     #  - Match when it is the only word on the line (anchor to start and end line breaks)
     re.compile(r'(^|\n)\s*j\s*u\s*d\s*g\s*e*\s*m\s*e\s*n\s*t\s*:?\s*\n', re.I),
 
-    # Used in High Court
-    re.compile(r'\n\s*Judge?ment\s+reserved.?\s*\n', re.I),
+    re.compile(r'EX TEMPORE JUDGMENT\s', re.I),
+    re.compile(r'\sTHE COURT (DECLARES|ORDERS) THAT:?\s', re.I),
+    re.compile(r'\sJudge?ment\s+Reserved.?\s', re.I),
 
-    # Used in Appeal Court
     re.compile(r'\n\s*Cur\s+Adv\s+Vult\s*\n', re.I),
 
-    # Used in NSW Courts
     re.compile(r'\n\s*REASONS\s+FOR\s+JUDGE?MENT\s*\n'),
 
-    # Used in NSW Courts
     re.compile(r'^\s*REMARKS\s+ON\s+SENTENCE\b', re.I),
 ]
 
@@ -49,6 +47,7 @@ RESTRICTED_TEXT_REGEX = re.compile(r'The text of decision for[^\n]*has been rest
 # For removing other junk in the documents
 PAGE_NUMBER_REGEX = re.compile(r'\[Page \d+\]', re.I)
 CDATA_SUFFIX = '//]]>'
+CSS_SUFFIX = '!important;}'
 
 LINE_BREAK = re.compile(r'\n+')
 WHITE_SPACE = re.compile(r'\s+')
@@ -72,18 +71,20 @@ def remove_from(text, pattern):
 
 class Sanitizer:
     def sanitize(self, text):
-        # Remove JS junk from top of text
-        text = remove_until(text, CDATA_SUFFIX)
+        # Remove page number embedded inside text
+        text = self.remove_page_numbers(text)
 
         # Remove disclaimer text and other boilerplate at the end of the text
         for prefix in DOCUMENT_END_PREFIX:
             text = remove_from(text, prefix)
 
-        # Remove page number embedded inside text
-        text = self.remove_page_numbers(text)
-
         # Try to extract the judgement from the text
-        return self.extract_judgement(text)
+        text = self.extract_judgement(text)
+
+        # Remove JS junk from top of text
+        text = remove_until(text, CDATA_SUFFIX)
+
+        return text
 
     def tokenize(self, text):
         """Tokenizes text by removing invalid characters, putting to lower case and stemming
@@ -130,7 +131,7 @@ class Sanitizer:
             else:
                 break
 
-        return '\n'.join(lines[i:])
+        return '\n'.join(lines[i-1:])
 
     def __remove_whitespace(self, line):
         return re.sub(WHITE_SPACE, '', line)

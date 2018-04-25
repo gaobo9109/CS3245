@@ -11,7 +11,7 @@ import time
 from collections import Counter, namedtuple, defaultdict
 from itertools import imap
 from multiprocessing import Pool
-from operator import attrgetter
+from operator import attrgetter, itemgetter
 from config import *
 from sanitizer import Sanitizer
 
@@ -150,23 +150,22 @@ def encode_posting(args):
 
 
 def write_postings(output_file_postings, postings, pool=None):
+    log("Encoding entries")
     # List of corresponding posting lists and their starting bytes
     term_offsets = {}
-
+    
     if pool:
         results = pool.map(encode_posting, postings.items())
     else:
         results = imap(encode_posting, postings.items())
 
-    log("Encoding entries")
-    encoded_entries = dict(results)
-    sorted_terms = sorted(postings)
+    encoded_entries = sorted(results, key=itemgetter(0))
 
     log("Writing entries to disk")
     with open(output_file_postings, 'wb') as output_file:
-        for term in sorted_terms:
+        for term, entry in encoded_entries:
             offset = output_file.tell()
-            output_file.write(encoded_entries[term])
+            output_file.write(entry)
             term_offsets[term] = offset
 
     return term_offsets
