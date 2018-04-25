@@ -153,7 +153,7 @@ def compute_score_free_text(query_weight, term_postings, doc_info):
 
             score[doc_id] += query_weight[term] * tf / doc_info[doc_id].length
 
-    score = combine_court_score(score, doc_info, 0.5)
+    score = combine_court_score(score, doc_info, 0.8)
 
     return score
 
@@ -164,7 +164,7 @@ def compute_score_boolean(id_list, filtered_results, doc_info):
         for result in filtered_results:
             score[doc_id] += result[i].weighted_tf / doc_info[doc_id].length
 
-    score = combine_court_score(score, doc_info, 0.5)
+    score = combine_court_score(score, doc_info, 0.8)
     return score
 
 def rank_by_score(score, doc_info):
