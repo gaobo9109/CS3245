@@ -149,7 +149,7 @@ def encode_posting(args):
     return term, encoded_entry
 
 
-def write_postings(output_file_postings, postings, pool=None):
+def write_postings(output_file_postings, postings):
     log("Encoding entries")
     # List of corresponding posting lists and their starting bytes
     term_offsets = {}
@@ -159,15 +159,13 @@ def write_postings(output_file_postings, postings, pool=None):
     else:
         results = imap(encode_posting, postings.items())
 
-    results = sorted(results, key=itemgetter(1))
+    results = sorted(results, key=itemgetter(0))
 
     log("Writing entries to disk")
-    bytes_written = 0
-    with open(output_file_postings, 'wb', 2**10) as output_file:
+    with open(output_file_postings, 'wb') as output_file:
         for term, entry in results:
-            term_offsets[term] = bytes_written
+            term_offsets[term] = output_file.tell()
             output_file.write(entry)
-            bytes_written += len(entry)
 
     return term_offsets
 
