@@ -65,18 +65,27 @@ read time.
 = Searching =
 
 There are two cases for searching : Free text queries and boolean queries. A boolean query is identified by the existence of 
-an "AND" in the query and has the possibility of including phrasal queries. 
+an "AND" or quotation mark in the query. Boolean query has the possibility of including phrasal queries. 
 
-For free text queries:
+Free text queries:
 For each query term, the tf-idf is calculated and the tf-idf vector is constructed for the entire query. We then extract the
 posting list associated with each query term. The cos similarity score for each document is computed, and the results are 
 returned in order of relevance
 
-For boolean queries:
-???
+Boolean queries:
+We use positional index to find the existence of both phrase and single word query term in a document. To find a phrase in a 
+document, we first find the documents containing all terms in the phrase. Then for each of these documents, we find places where
+phrasal terms differ by 1 in their positions. The term frequency of the phrase in a document is also recorded during the scan 
+process. The term frequency of single word query term can easily be found from posting list. For each of the document that contain
+all query terms, we add up the term frequency of all query terms in the document and use it as a relevance score. A phrase is 
+regarded as a single query term. For example, for query ""fertility treatment" AND damages", "fertility treatment" and "damages" 
+are treated as two query terms, we add up their respective term frequency and use it as a relevance score
 
-= Query Expansion =
-???
+For both free text queries and boolean queries, we combine the relevance score of a document together with its court score. A court
+score is assigned to a document based on the court hierachy information provided to us. The court score and relevance score is
+combined in the following way. We rescale the court score and relevance score to a value between 0 and 1, then we add them together
+as a weighted sum. Weightage given to each term is experimentally determined. 
+
 
 == Files included with this submission ==
 
